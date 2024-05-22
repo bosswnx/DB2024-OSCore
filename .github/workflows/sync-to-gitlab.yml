@@ -27,4 +27,4 @@ jobs:
         GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
       run: |
         git remote add gitlab https://${{ secrets.GITLAB_USERNAME }}:${{ secrets.GITLAB_TOKEN }}@gitlab.eduxiji.net/bosswnx/db-2024-os-core.git
-        git push --mirror gitlab
+        git push gitlab --force --all
