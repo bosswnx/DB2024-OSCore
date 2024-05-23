@@ -134,6 +134,9 @@ void check_equal(const RmFileHandle *file_handle,
         assert(memcmp(rec->data, mock.at(scan.rid()).c_str(), file_handle->file_hdr_.record_size) == 0);
         num_records++;
     }
+    assert((num_records == mock.size() ||  mock.size() - num_records != 1
+        || num_records != file_handle->file_hdr_.num_records_per_page)
+        && "----------bug规律：mock.size() == num_records_per_page + 1 && num_records == num_records_per_page----------");
     assert(num_records == mock.size());
 }
 
