@@ -22,11 +22,11 @@ std::unique_ptr<RmRecord> RmFileHandle::get_record(const Rid &rid, Context *cont
     // 2. 初始化一个指向RmRecord的指针（赋值其内部的data和size）
     auto page_handle = fetch_page_handle(rid.page_no);
     auto record_size = page_handle.file_hdr->record_size;
-    char* buf = new char [record_size];
+    char *buf = new char[record_size];
     memcpy(buf, page_handle.get_slot(rid.slot_no), record_size);
     assert(Bitmap::is_set(page_handle.bitmap, rid.slot_no));    // 此记录必须有效
     buffer_pool_manager_->unpin_page({fd_, rid.page_no}, false);
-    auto ptr =  std::make_unique<RmRecord>(record_size, buf);
+    auto ptr = std::make_unique<RmRecord>(record_size, buf);
     delete[] buf;
     return ptr;
 }
@@ -53,7 +53,8 @@ Rid RmFileHandle::insert_record(char *buf, Context *context) {
     memcpy(page_handle.get_slot(first_zero), buf, record_size);
     Bitmap::set(page_handle.bitmap, first_zero);
     page_handle.page_hdr->num_records++;
-    if (first_zero == file_hdr_.num_records_per_page - 1) {     // 刚好用完这一页
+    if (page_handle.page_hdr->num_records == file_hdr_.num_records_per_page) {     // 刚好用完这一页
+        // 在插入前这一页在链表中，所以`next_free_page_no`有效
         file_hdr_.first_free_page_no = page_handle.page_hdr->next_free_page_no;
     }
     page_id_t page_no = page_handle.page->get_page_id().page_no;
@@ -88,7 +89,7 @@ void RmFileHandle::delete_record(const Rid &rid, Context *context) {
 
     auto page_handle = fetch_page_handle(rid.page_no);
     int num_slot = file_hdr_.num_records_per_page;
-    if(Bitmap::first_bit(true, page_handle.bitmap, num_slot) == num_slot){
+    if (page_handle.page_hdr->num_records == num_slot) {
         // 全满 -> 半满
         release_page_handle(page_handle);
     }
@@ -145,9 +146,7 @@ RmPageHandle RmFileHandle::create_new_page_handle() {
     // 3.更新file_hdr_
     PageId page_id = {fd_, INVALID_PAGE_ID};
     Page *page = buffer_pool_manager_->new_page(&page_id);
-    if(file_hdr_.first_free_page_no == -1){
-        file_hdr_.first_free_page_no = 1;   // 分配第一页
-    }
+    file_hdr_.first_free_page_no = page_id.page_no;
     file_hdr_.num_pages++;
     return RmPageHandle(&file_hdr_, page);
 }
@@ -165,10 +164,13 @@ RmPageHandle RmFileHandle::create_page_handle() {
     //     1.2 有空闲页：直接获取第一个空闲页
     // 2. 生成page handle并返回给上层
     auto no = file_hdr_.first_free_page_no;
-    // -1是非法值，说明此文件连一页也没有分配
-    if (no == file_hdr_.num_pages + 1 || no == -1 ) {
-        return create_new_page_handle();
+    // -1是非法值，说明此文件连一页也没有分配给记录（file_handler占据了第0页）
+    if (no == file_hdr_.num_pages || no == -1) {
+        auto page_handle = create_new_page_handle();
+        page_handle.page_hdr->next_free_page_no = file_hdr_.num_pages;   // free page链表末尾
+        return page_handle;
     }
+    assert(no != 0 && no < file_hdr_.num_pages);
     Page *page = buffer_pool_manager_->fetch_page({fd_, no});
     return RmPageHandle(&file_hdr_, page);
 }
@@ -187,24 +189,26 @@ void RmFileHandle::release_page_handle(RmPageHandle &page_handle) {
 
     page_id_t page_no = page_handle.page->get_page_id().page_no;
     assert(page_no != file_hdr_.first_free_page_no);  // 不能释放一个已经空闲的页
-    if(page_no > file_hdr_.first_free_page_no){
+    if (page_no > file_hdr_.first_free_page_no) {
         // ... -> 4 -> 插入5 -> 6 -> ...
         // ... -> 3 -> 插入5 -> 6 -> ...
         // 找到第一个大于page_no的节点，在其前面插入
         RmPageHandle prev = fetch_page_handle(file_hdr_.first_free_page_no);
-        while (prev.page_hdr->next_free_page_no != -1 && prev.page_hdr->next_free_page_no < page_no){
+        while (prev.page_hdr->next_free_page_no != -1 && prev.page_hdr->next_free_page_no < page_no) {
             int next_no = prev.page_hdr->next_free_page_no;
             buffer_pool_manager_->unpin_page(prev.page->get_page_id(), false);
             prev = fetch_page_handle(next_no);
         }
-        assert(prev.page_hdr->next_free_page_no != page_no);     // 释放一个已经空闲的页
+        assert(prev.page_hdr->next_free_page_no != page_no);     // 不能释放一个已经空闲的页
+        assert(prev.page_hdr->next_free_page_no != -1);      // 链表中不存在这一页
         page_handle.page_hdr->next_free_page_no = prev.page_hdr->next_free_page_no;
         prev.page_hdr->next_free_page_no = page_no;
         buffer_pool_manager_->unpin_page(prev.page->get_page_id(), true);
-    }else if(page_no < file_hdr_.first_free_page_no){   // 插入在头部 -> item -> item -> ...
+    } else if (page_no < file_hdr_.first_free_page_no) {
+        // 插入在头部 -> item -> item -> ...
         page_handle.page_hdr->next_free_page_no = file_hdr_.first_free_page_no;
         file_hdr_.first_free_page_no = page_handle.page->get_page_id().page_no;
     }
     buffer_pool_manager_->unpin_page(page_handle.page->get_page_id(), true);
-    file_hdr_.num_pages--;
+//    file_hdr_.num_pages--;    // 此文件分配了页后就不会收回
 }

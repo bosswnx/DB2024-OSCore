@@ -34,7 +34,7 @@ RmScan::RmScan(const RmFileHandle *file_handle) : file_handle_(file_handle) {
 
     // 链表对寻找非全空无帮助，遍历page
     int num_slot = hdr.num_records_per_page;
-    for (page_no = 1; page_no <= hdr.num_pages; ++page_no) {
+    for (page_no = 1; page_no < hdr.num_pages; ++page_no) {
         auto page_handle = file_handle->fetch_page_handle(page_no);
         int first_one =  Bitmap::first_bit(true, page_handle.bitmap, num_slot);
         file_handle_->buffer_pool_manager_->unpin_page(page_handle.page->get_page_id(), false);
@@ -61,7 +61,7 @@ void RmScan::next() {
     int curr = rid_.slot_no;
     assert(!is_end());      // 迭代器失效后不能再迭代
 
-    for (int page_no = rid_.page_no; page_no <= hdr.num_pages; ++page_no) {
+    for (int page_no = rid_.page_no; page_no < hdr.num_pages; ++page_no) {
         // 找到此page内第一个记录
         auto page_handle = file_handle_->fetch_page_handle(page_no);
         int first_one = Bitmap::next_bit(true, page_handle.bitmap, num_slot, curr);
@@ -72,7 +72,7 @@ void RmScan::next() {
             return;
         }
     }
-    rid_ = {hdr.num_pages, num_slot};
+    rid_ = {-1, -1};
     // 到达终点
 }
 
@@ -81,8 +81,7 @@ void RmScan::next() {
  */
 bool RmScan::is_end() const {
     // Todo: 修改返回值
-    auto hdr = file_handle_->file_hdr_;
-    return rid_.page_no == hdr.num_pages && rid_.slot_no == hdr.num_records_per_page;
+    return rid_.page_no == -1 && rid_.slot_no == -1;
 }
 
 /**
