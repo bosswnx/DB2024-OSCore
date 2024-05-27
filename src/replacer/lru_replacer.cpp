@@ -68,18 +68,16 @@ void LRUReplacer::unpin(frame_id_t frame_id) {
     //  支持并发锁
     //  选择一个frame取消固定
     std::scoped_lock lock{latch_};
-    if(LRUhash_.find(frame_id) != LRUhash_.end()){
-        auto it = LRUhash_[frame_id];
-//        it = LRUlist_.erase(it);
-//        LRUlist_.push_front(frame_id);    // ？命中LRU链表时不需要移动到链表头，否则无法通过测试
-    } else if (frame_id >= 0 && frame_id < max_size_) {
-        LRUlist_.push_front(frame_id);
-    } else{
-//        处理非法情况
+    if(frame_id < 0 || frame_id >= max_size_){
+        // 处理非法情况
         char msg[80];
         std::snprintf(msg, 80, "LRUReplacer::unpin invalid frame_id: %d", frame_id);
         throw InternalError(std::string(msg));
     }
+    if(LRUhash_.find(frame_id) != LRUhash_.end()){  // 第二次unpin无效果
+        return;
+    }
+    LRUlist_.push_front(frame_id);      // 插入至链表头部
     LRUhash_[frame_id] = LRUlist_.begin();      // 插入不会使迭代器失效
 }
 
