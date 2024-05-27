@@ -85,6 +85,7 @@ Page* BufferPoolManager::fetch_page(PageId page_id) {
         return nullptr;     // 没有可淘汰页或空闲页，无法加载到buffer pool中
     }
     update_page(&pages_[victim], page_id, victim);
+    disk_manager_->read_page(page_id.fd, page_id.page_no, pages_[victim].get_data(), PAGE_SIZE);
     pages_[victim].pin_count_ = 1;
     replacer_->pin(victim);     // 该页首次pin
     return &pages_[victim];
