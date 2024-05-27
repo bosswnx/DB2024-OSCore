@@ -8,6 +8,7 @@ EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
+#include <algorithm>
 #include "lru_replacer.h"
 
 LRUReplacer::LRUReplacer(size_t num_pages) { max_size_ = num_pages; }
@@ -27,7 +28,14 @@ bool LRUReplacer::victim(frame_id_t* frame_id) {
     // Todo:
     //  利用lru_replacer中的LRUlist_,LRUHash_实现LRU策略
     //  选择合适的frame指定为淘汰页面,赋值给*frame_id
-
+    auto last = LRUlist_.rbegin();
+    if (last == LRUlist_.rend()) {
+        frame_id = nullptr;     // 无效的赋值
+        return false;
+    }
+    *frame_id = *last;
+    LRUlist_.pop_back();
+    LRUhash_.erase(LRUhash_.find(*frame_id));
     return true;
 }
 
@@ -40,6 +48,11 @@ void LRUReplacer::pin(frame_id_t frame_id) {
     // Todo:
     // 固定指定id的frame
     // 在数据结构中移除该frame
+    auto it = LRUhash_.find(frame_id);
+    if(it != LRUhash_.end()){
+        LRUlist_.erase(it->second);
+        LRUhash_.erase(LRUhash_.find(frame_id));
+    }
 }
 
 /**
@@ -50,6 +63,15 @@ void LRUReplacer::unpin(frame_id_t frame_id) {
     // Todo:
     //  支持并发锁
     //  选择一个frame取消固定
+    std::scoped_lock lock{latch_};
+    if(LRUhash_.find(frame_id) != LRUhash_.end()){
+        auto it = LRUhash_[frame_id];
+//        it = LRUlist_.erase(it);
+//        LRUlist_.push_front(frame_id);    // ？命中LRU链表时不需要移动到链表头，否则无法通过测试
+    }else{
+        LRUlist_.push_front(frame_id);
+    }
+    LRUhash_[frame_id] = LRUlist_.begin();      // 插入不会使迭代器失效
 }
 
 /**

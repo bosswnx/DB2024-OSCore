@@ -32,6 +32,10 @@ void DiskManager::write_page(int fd, page_id_t page_no, const char *offset, int 
     // 2.调用write()函数
     // 注意write返回值与num_bytes不等时 throw InternalError("DiskManager::write_page Error");
 
+    lseek(fd, page_no * PAGE_SIZE, SEEK_SET);
+    if (write(fd, offset, num_bytes) != num_bytes) {
+        throw InternalError("DiskManager::write_page Error");
+    }
 }
 
 /**
@@ -46,7 +50,10 @@ void DiskManager::read_page(int fd, page_id_t page_no, char *offset, int num_byt
     // 1.lseek()定位到文件头，通过(fd,page_no)可以定位指定页面及其在磁盘文件中的偏移量
     // 2.调用read()函数
     // 注意read返回值与num_bytes不等时，throw InternalError("DiskManager::read_page Error");
-
+    lseek(fd, page_no * PAGE_SIZE, SEEK_SET);
+    if (read(fd, offset, num_bytes) != num_bytes) {
+        throw InternalError("DiskManager::read_page Error");
+    }
 }
 
 /**
@@ -62,7 +69,7 @@ page_id_t DiskManager::allocate_page(int fd) {
 
 void DiskManager::deallocate_page(__attribute__((unused)) page_id_t page_id) {}
 
-bool DiskManager::is_dir(const std::string& path) {
+bool DiskManager::is_dir(const std::string &path) {
     struct stat st;
     return stat(path.c_str(), &st) == 0 && S_ISDIR(st.st_mode);
 }
@@ -102,6 +109,11 @@ void DiskManager::create_file(const std::string &path) {
     // Todo:
     // 调用open()函数，使用O_CREAT模式
     // 注意不能重复创建相同文件
+    int fd = open(path.c_str(), O_CREAT | O_EXCL, 0640);
+    if (fd == -1) {
+        throw FileExistsError(path);
+    }
+    close(fd);
 }
 
 /**
@@ -112,7 +124,19 @@ void DiskManager::destroy_file(const std::string &path) {
     // Todo:
     // 调用unlink()函数
     // 注意不能删除未关闭的文件
-    
+    if (path2fd_.find(path) != path2fd_.end()) {
+        throw FileNotClosedError(path);
+    }
+
+//  It's better to ask for forgiveness than permission
+//  先判断文件是否存在再删除，并发条件下容易出错
+
+//  先清空errno，再判断是否为ENOENT(No such file or directory)
+    errno = 0;
+    if (unlink(path.c_str()) == -1 && errno == ENOENT) {
+        throw FileNotFoundError(path);
+    }
+
 }
 
 
@@ -125,7 +149,18 @@ int DiskManager::open_file(const std::string &path) {
     // Todo:
     // 调用open()函数，使用O_RDWR模式
     // 注意不能重复打开相同文件，并且需要更新文件打开列表
-
+    if (!is_file(path)) {
+        throw FileNotFoundError(path);
+    }
+    if (path2fd_.find(path) == path2fd_.end()) {
+        int fd = open(path.c_str(), O_RDWR);
+        if (fd == -1) {
+            throw UnixError();
+        }
+        path2fd_[path] = fd;
+        fd2path_[fd] = path;
+    }
+    return path2fd_[path];
 }
 
 /**
@@ -136,7 +171,12 @@ void DiskManager::close_file(int fd) {
     // Todo:
     // 调用close()函数
     // 注意不能关闭未打开的文件，并且需要更新文件打开列表
-
+    if (fd2path_.find(fd) != fd2path_.end()) {
+        close(fd);
+        std::string path = fd2path_[fd];
+        fd2path_.erase(fd2path_.find(fd));
+        path2fd_.erase(path2fd_.find(path));
+    }
 }
 
 
@@ -194,7 +234,7 @@ int DiskManager::read_log(char *log_data, int size, int offset) {
     }
 
     size = std::min(size, file_size - offset);
-    if(size == 0) return 0;
+    if (size == 0) return 0;
     lseek(log_fd_, offset, SEEK_SET);
     ssize_t bytes_read = read(log_fd_, log_data, size);
     assert(bytes_read == size);
