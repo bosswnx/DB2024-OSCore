@@ -52,6 +52,8 @@ void LRUReplacer::pin(frame_id_t frame_id) {
     if(it != LRUhash_.end()){
         LRUlist_.erase(it->second);
         LRUhash_.erase(LRUhash_.find(frame_id));
+    }else{
+        throw InternalError("LRUReplacer::pin try to pin a already pinned page");
     }
 }
 
