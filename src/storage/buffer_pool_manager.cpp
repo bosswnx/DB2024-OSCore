@@ -76,7 +76,8 @@ Page* BufferPoolManager::fetch_page(PageId page_id) {
 
     if(page_table_.find(page_id) != page_table_.end()){     // 在buffer pool中
         Page* p =  &pages_[page_table_[page_id]];
-//        replacer_->pin(page_table_[page_id]);   // 多次pin
+        // pin_cout_ == 0时此页还能留在buffer_pool中，可能已经unpinned，确保已经pin
+        replacer_->pin(page_table_[page_id]);
         p->pin_count_++;
         return p;
     }
@@ -196,6 +197,7 @@ bool BufferPoolManager::delete_page(PageId page_id) {
     }
     flush_page(page_id);
     memset(&pages_[it->second], 0, sizeof(Page));   // 填充零
+    free_list_.push_back(it->second);
     page_table_.erase(it);
     return true;
 }
