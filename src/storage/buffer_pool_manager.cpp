@@ -113,23 +113,19 @@ bool BufferPoolManager::unpin_page(PageId page_id, bool is_dirty) {
         return false;
     }
     Page* p = &pages_[page_table_[page_id]];
-
+    bool retval = p->pin_count_ > 0;
     if(p->pin_count_ == 0){
-        p->is_dirty_ = is_dirty;
-    }else if(p->pin_count_ > 1){
-        p->pin_count_--;
-        p->is_dirty_ = is_dirty;
-    }else if(p->pin_count_ == 1){
-        p->pin_count_--;
-        replacer_->unpin(page_table_[page_id]);
-        p->is_dirty_ = is_dirty;
-        return true;
-    }else{
-        // pin_count < 0，非法情况
-        assert(false);
+        return false;
+    }else if(p->pin_count_ > 0){
+        p->pin_count_ --;
     }
-    return false;
-
+    if(p->pin_count_ == 0){
+        replacer_->unpin(page_table_[page_id]);
+    }
+    if(is_dirty){
+        p->is_dirty_ = true;    // 避免`p->is_dirty_`被`false`覆盖
+    }
+    return retval;
 }
 
 /**
