@@ -74,6 +74,7 @@ struct RmRecord {
     }
 
     void Deserialize(const char* data_) {
+        // 开头四字节的字段长度
         size = *reinterpret_cast<const int*>(data_);
         if(allocated_) {
             delete[] data;

@@ -26,17 +26,22 @@ class AbstractExecutor {
     virtual size_t tupleLen() const { return 0; };
 
     virtual const std::vector<ColMeta> &cols() const {
-        std::vector<ColMeta> *_cols = nullptr;
-        return *_cols;
+        throw InternalError("virtual member function not implemented");
     };
 
     virtual std::string getType() { return "AbstractExecutor"; };
 
-    virtual void beginTuple(){};
+    virtual void beginTuple(){
+        throw InternalError("virtual member function not implemented");
+    };
 
-    virtual void nextTuple(){};
+    virtual void nextTuple(){
+        throw InternalError("virtual member function not implemented");
+    };
 
-    virtual bool is_end() const { return true; };
+    virtual bool is_end() const {
+        throw InternalError("virtual member function not implemented");
+    };
 
     virtual Rid &rid() = 0;
 
@@ -45,7 +50,7 @@ class AbstractExecutor {
     virtual ColMeta get_col_offset(const TabCol &target) { return ColMeta();};
 
     std::vector<ColMeta>::const_iterator get_col(const std::vector<ColMeta> &rec_cols, const TabCol &target) {
-        auto pos = std::find_if(rec_cols.begin(), rec_cols.end(), [&](const ColMeta &col) {
+        auto pos = std::find_if(rec_cols.begin(), rec_cols.end(), [&target](const ColMeta &col) {
             return col.tab_name == target.tab_name && col.name == target.col_name;
         });
         if (pos == rec_cols.end()) {

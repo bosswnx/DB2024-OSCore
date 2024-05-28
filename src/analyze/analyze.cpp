@@ -23,13 +23,18 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
         // 处理表名
         query->tables = std::move(x->tabs);
         /** TODO: 检查表是否存在 */
+        for(auto& table_name : query->tables){
+            if (!sm_manager_->db_.is_table(table_name)){
+                throw TableNotFoundError(table_name);
+            }
+        }
 
         // 处理target list，再target list中添加上表名，例如 a.id
         for (auto &sv_sel_col : x->cols) {
             TabCol sel_col = {.tab_name = sv_sel_col->tab_name, .col_name = sv_sel_col->col_name};
             query->cols.push_back(sel_col);
         }
-        
+
         std::vector<ColMeta> all_cols;
         get_all_cols(query->tables, all_cols);
         if (query->cols.empty()) {
@@ -53,7 +58,7 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
     } else if (auto x = std::dynamic_pointer_cast<ast::DeleteStmt>(parse)) {
         //处理where条件
         get_clause(x->conds, query->conds);
-        check_clause({x->tab_name}, query->conds);        
+        check_clause({x->tab_name}, query->conds);
     } else if (auto x = std::dynamic_pointer_cast<ast::InsertStmt>(parse)) {
         // 处理insert 的values值
         for (auto &sv_val : x->vals) {
@@ -85,7 +90,10 @@ TabCol Analyze::check_column(const std::vector<ColMeta> &all_cols, TabCol target
         target.tab_name = tab_name;
     } else {
         /** TODO: Make sure target column exists */
-        
+        TabMeta table = sm_manager_->db_.get_table(target.tab_name);
+        if(!table.is_col(target.col_name)){
+            throw ColumnNotFoundError(target.col_name);
+        }
     }
     return target;
 }
@@ -123,7 +131,7 @@ void Analyze::check_clause(const std::vector<std::string> &tab_names, std::vecto
     for (auto &cond : conds) {
         // Infer table name from column name
         cond.lhs_col = check_column(all_cols, cond.lhs_col);
-        if (!cond.is_rhs_val) {
+        if (!cond.is_rhs_val) {     // 如果右手边也是列，也需要检查列的合法性
             cond.rhs_col = check_column(all_cols, cond.rhs_col);
         }
         TabMeta &lhs_tab = sm_manager_->db_.get_table(cond.lhs_col.tab_name);
@@ -138,7 +146,7 @@ void Analyze::check_clause(const std::vector<std::string> &tab_names, std::vecto
             auto rhs_col = rhs_tab.get_col(cond.rhs_col.col_name);
             rhs_type = rhs_col->type;
         }
-        if (lhs_type != rhs_type) {
+        if(!colTypeCanHold(lhs_type, rhs_type)){
             throw IncompatibleTypeError(coltype2str(lhs_type), coltype2str(rhs_type));
         }
     }
@@ -160,7 +168,7 @@ Value Analyze::convert_sv_value(const std::shared_ptr<ast::Value> &sv_val) {
 }
 
 CompOp Analyze::convert_sv_comp_op(ast::SvCompOp op) {
-    std::map<ast::SvCompOp, CompOp> m = {
+    static const std::map<ast::SvCompOp, CompOp> m = {
         {ast::SV_OP_EQ, OP_EQ}, {ast::SV_OP_NE, OP_NE}, {ast::SV_OP_LT, OP_LT},
         {ast::SV_OP_GT, OP_GT}, {ast::SV_OP_LE, OP_LE}, {ast::SV_OP_GE, OP_GE},
     };

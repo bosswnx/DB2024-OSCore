@@ -27,7 +27,7 @@ class ProjectionExecutor : public AbstractExecutor {
         prev_ = std::move(prev);
 
         size_t curr_offset = 0;
-        auto &prev_cols = prev_->cols();
+        auto &prev_cols = prev_->cols();    // 必须是`SeqScanExecutor`
         for (auto &sel_col : sel_cols) {
             auto pos = get_col(prev_cols, sel_col);
             sel_idxs_.push_back(pos - prev_cols.begin());
@@ -39,12 +39,32 @@ class ProjectionExecutor : public AbstractExecutor {
         len_ = curr_offset;
     }
 
-    void beginTuple() override {}
+    void beginTuple() override {
+        prev_->beginTuple();
+    }
 
-    void nextTuple() override {}
+    void nextTuple() override {
+        prev_->nextTuple();
+    }
+
+    [[nodiscard]] bool is_end() const override{
+        return prev_->is_end();
+    }
+
+    [[nodiscard]] const std::vector<ColMeta> &cols() const override{
+        return cols_;
+    }
 
     std::unique_ptr<RmRecord> Next() override {
-        return nullptr;
+        auto raw_record =  prev_->Next();
+        auto data = std::make_unique<char[]>(len_);
+        int offset = 0;
+        for (auto i:sel_idxs_) {
+            auto& col = prev_->cols().at(i);
+            memcpy(data.get() + offset,raw_record->data + col.offset, col.len);
+            offset += col.len;
+        }
+        return std::make_unique<RmRecord>(offset, data.get());
     }
 
     Rid &rid() override { return _abstract_rid; }

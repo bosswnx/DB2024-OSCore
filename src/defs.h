@@ -43,6 +43,13 @@ enum ColType {
     TYPE_INT, TYPE_FLOAT, TYPE_STRING
 };
 
+// `static` 将`colTypeCanHold`改为internal linkage，否则无法通过编译。
+static bool colTypeCanHold(ColType rhs, ColType lhs){
+    // int和float可以相容
+    return lhs == rhs || (lhs == TYPE_INT && rhs == TYPE_FLOAT) || (lhs == TYPE_FLOAT && rhs == TYPE_INT);
+}
+
+
 inline std::string coltype2str(ColType type) {
     std::map<ColType, std::string> m = {
             {TYPE_INT,    "INT"},
