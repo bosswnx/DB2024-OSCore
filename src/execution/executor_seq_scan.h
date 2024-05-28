@@ -68,8 +68,8 @@ public:
     bool evalConditions() {
         auto handle = fh_->get_record(scan_->rid(), context_);
         char *base = handle->data;
-        // 逻辑短路，目前只实现逻辑与
-        return std::all_of(conds_.begin(), conds_.end(), [base, this](Condition cond) {
+        // 逻辑不短路，目前只实现逻辑与
+        return std::all_of(conds_.begin(), conds_.end(), [base, this](const Condition& cond) {
             auto value = col2Value(base, cond.lhs_col);
             return cond.eval(value);
         });
@@ -113,5 +113,8 @@ public:
         return fh_->get_record(scan_->rid(), context_);
     }
 
-    Rid &rid() override { return rid_; }
+    Rid &rid() override {
+        rid_ = scan_->rid();    // TODO：没必要维护一个`rid_`跟踪`RmScan.rid_`的变化，目前删掉`rid_`需要改动接口，未来可以删掉`rid_`
+        return rid_;
+    }
 };

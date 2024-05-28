@@ -22,7 +22,7 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
     {
         // 处理表名
         query->tables = std::move(x->tabs);
-        /** TODO: 检查表是否存在 */
+        /* 检查表是否存在 */
         for(auto& table_name : query->tables){
             if (!sm_manager_->db_.is_table(table_name)){
                 throw TableNotFoundError(table_name);
@@ -51,14 +51,30 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
         }
         //处理where条件
         get_clause(x->conds, query->conds);
-        check_clause(query->tables, query->conds);
+        check_where_clause(query->tables, query->conds);
     } else if (auto x = std::dynamic_pointer_cast<ast::UpdateStmt>(parse)) {
-        /** TODO: */
-
+        // update语句只有一个表
+        query->tables.push_back(x->tab_name);
+        // 检查表是否存在
+        if (!sm_manager_->db_.is_table(x->tab_name)){
+            throw TableNotFoundError(x->tab_name);
+        }
+        get_clause(x->conds, query->conds);
+        // 检查where子句的语义
+        check_where_clause(query->tables, query->conds);
+        // 从语法树中提取set子句
+        for(const auto& clause : x->set_clauses){
+            query->set_clauses.push_back({
+                // 补全表名
+                .lhs={.tab_name = query->tables.at(0),.col_name= clause->col_name},
+                .rhs=convert_sv_value(clause->val)
+            });
+        }
+        check_set_clause(query->tables.at(0), query->set_clauses);
     } else if (auto x = std::dynamic_pointer_cast<ast::DeleteStmt>(parse)) {
         //处理where条件
         get_clause(x->conds, query->conds);
-        check_clause({x->tab_name}, query->conds);
+        check_where_clause({x->tab_name}, query->conds);
     } else if (auto x = std::dynamic_pointer_cast<ast::InsertStmt>(parse)) {
         // 处理insert 的values值
         for (auto &sv_val : x->vals) {
@@ -71,7 +87,25 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
     return query;
 }
 
+/// 检查`set score = 90`语句中，`score`列名是否存在，`score`和`90`类型是否相容,并强制转换数据类型
+void Analyze::check_set_clause(const std::string &tab_name, std::vector<SetClause>& clauses){
+    TabMeta table = sm_manager_->db_.get_table(tab_name);
+    for(auto& clause: clauses){
+        table.is_col(clause.lhs.col_name);  // 检查列名是否存在
+        ColType lhs_type = table.get_col(clause.lhs.col_name)->type;
+        ColType rhs_type = clause.rhs.type;
+        if(!colTypeCanHold(lhs_type, rhs_type)){    // 检查set语句两边的类型是否相容
+            throw IncompatibleTypeError(coltype2str(lhs_type), coltype2str(rhs_type));
+        }
+        if(lhs_type == TYPE_INT && rhs_type == TYPE_FLOAT){
+            clause.rhs.float2int();
+        }else if(lhs_type == TYPE_FLOAT && rhs_type == TYPE_INT){
+            clause.rhs.int2float();
+        }
+    }
+}
 
+/// 当表名省略时，自动推导出表名(无法推导则抛出歧义异常），然后为`target`补全表名
 TabCol Analyze::check_column(const std::vector<ColMeta> &all_cols, TabCol target) {
     if (target.tab_name.empty()) {
         // Table name not specified, infer table name from column name
@@ -89,7 +123,7 @@ TabCol Analyze::check_column(const std::vector<ColMeta> &all_cols, TabCol target
         }
         target.tab_name = tab_name;
     } else {
-        /** TODO: Make sure target column exists */
+        /** Make sure target column exists */
         TabMeta table = sm_manager_->db_.get_table(target.tab_name);
         if(!table.is_col(target.col_name)){
             throw ColumnNotFoundError(target.col_name);
@@ -106,6 +140,7 @@ void Analyze::get_all_cols(const std::vector<std::string> &tab_names, std::vecto
     }
 }
 
+/// 从语法树中提取出where语句
 void Analyze::get_clause(const std::vector<std::shared_ptr<ast::BinaryExpr>> &sv_conds, std::vector<Condition> &conds) {
     conds.clear();
     for (auto &expr : sv_conds) {
@@ -123,7 +158,8 @@ void Analyze::get_clause(const std::vector<std::shared_ptr<ast::BinaryExpr>> &sv
     }
 }
 
-void Analyze::check_clause(const std::vector<std::string> &tab_names, std::vector<Condition> &conds) {
+/// where子句语义检查，包括检查是否存在模糊的字段名，操作符两侧的列名是否存在，两侧类型是否支持操作符
+void Analyze::check_where_clause(const std::vector<std::string> &tab_names, std::vector<Condition> &conds) {
     // auto all_cols = get_all_cols(tab_names);
     std::vector<ColMeta> all_cols;
     get_all_cols(tab_names, all_cols);

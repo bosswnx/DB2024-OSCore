@@ -16,7 +16,7 @@ See the Mulan PSL v2 for more details. */
 #include "system/sm.h"
 
 class UpdateExecutor : public AbstractExecutor {
-   private:
+private:
     TabMeta tab_;
     std::vector<Condition> conds_;
     RmFileHandle *fh_;
@@ -25,20 +25,32 @@ class UpdateExecutor : public AbstractExecutor {
     std::vector<SetClause> set_clauses_;
     SmManager *sm_manager_;
 
-   public:
+public:
     UpdateExecutor(SmManager *sm_manager, const std::string &tab_name, std::vector<SetClause> set_clauses,
                    std::vector<Condition> conds, std::vector<Rid> rids, Context *context) {
         sm_manager_ = sm_manager;
         tab_name_ = tab_name;
-        set_clauses_ = set_clauses;
+        set_clauses_ = std::move(set_clauses);
         tab_ = sm_manager_->db_.get_table(tab_name);
         fh_ = sm_manager_->fhs_.at(tab_name).get();
-        conds_ = conds;
-        rids_ = rids;
+        conds_ = std::move(conds);
+        rids_ = std::move(rids);
         context_ = context;
     }
+
     std::unique_ptr<RmRecord> Next() override {
-        
+        int record_size = fh_->get_file_hdr().record_size;
+        auto buf = std::make_unique<char[]>(record_size);
+        for (const auto &rid: rids_) {
+            auto record = fh_->get_record(rid, context_);
+            memcpy(buf.get(), record->data, record_size);
+            for (auto &clause: set_clauses_) {
+                auto col = tab_.get_col(clause.lhs.col_name);
+                clause.rhs.init_raw(col->len);
+                memcpy(buf.get() + col->offset, clause.rhs.raw->data, col->len);
+            }
+            fh_->update_record(rid, buf.get(), context_);
+        }
         return nullptr;
     }
 

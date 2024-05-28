@@ -48,13 +48,28 @@ struct Value {
         float_val = float_val_;
     }
 
+    void float2int(){
+        assert(type == TYPE_FLOAT);
+        int_val = (int)float_val;
+        type = TYPE_INT;
+    }
+
+    void int2float(){
+        assert(type == TYPE_INT);
+        float_val = (float)int_val;
+        type = TYPE_FLOAT;
+    }
+
     void set_str(std::string str_val_) {
         type = TYPE_STRING;
         str_val = std::move(str_val_);
     }
 
     void init_raw(int len) {
-        assert(raw == nullptr);
+//        assert(raw == nullptr);
+        if(raw != nullptr){
+            return;     // 避免多次填充`raw.data`
+        }
         raw = std::make_shared<RmRecord>(len);
         if (type == TYPE_INT) {
             assert(len == sizeof(int));
@@ -68,6 +83,8 @@ struct Value {
             }
             memset(raw->data, 0, len);  // 空余bit填充零，如果没有空余bit就没有tailing-zero
             memcpy(raw->data, str_val.c_str(), str_val.size());
+        }else{
+            assert(false);      // 未实现的类型
         }
     }
 
@@ -127,11 +144,11 @@ struct Value {
     }
 
     bool operator<(const Value &rhs) const {
-        return !(this->operator==(rhs) && this->operator>(rhs));
+        return !(this->operator==(rhs) || this->operator>(rhs));
     }
 
     bool operator>=(const Value &rhs) const {
-        return operator==(rhs) && this->operator>(rhs);
+        return operator==(rhs) || this->operator>(rhs);
     }
     bool operator<=(const Value &rhs) const {
         return !this->operator>(rhs);

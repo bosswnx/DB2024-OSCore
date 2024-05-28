@@ -71,7 +71,7 @@ void *client_handler(void *sock_fd) {
     int fd = *((int *)sock_fd);
     pthread_mutex_unlock(sockfd_mutex);
 
-    int i_recvBytes;
+    ssize_t i_recvBytes;
     // 接收客户端发送的请求
     char data_recv[BUFFER_LENGTH];
     // 需要返回给客户端的结果
@@ -99,7 +99,7 @@ void *client_handler(void *sock_fd) {
             break;
         }
         
-        printf("i_recvBytes: %d \n ", i_recvBytes);
+        printf("i_recvBytes: %ld \n ", i_recvBytes);
 
         if (strcmp(data_recv, "exit") == 0) {
             std::cout << "Client exit." << std::endl;
