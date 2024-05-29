@@ -99,7 +99,8 @@ struct Value {
                 break;
             case TYPE_STRING: {
                 std::string str((char *) (base + meta.offset), meta.len);
-                str.resize(str.find('\0'));     // 去掉末尾的'\0'
+                // 去掉末尾的'\0', 考虑无tailing-zero的情况
+                str.resize(std::min(str.find('\0'), (size_t)meta.len));
                 value.set_str(str);
                 break;
             }
