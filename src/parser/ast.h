@@ -36,6 +36,14 @@ enum SetKnobType {
     EnableNestLoop, EnableSortMerge
 };
 
+enum AggregationType {
+    NO_AGGR,
+    AGGR_TYPE_COUNT,
+    AGGR_TYPE_MAX,
+    AGGR_TYPE_MIN,
+    AGGR_TYPE_SUM
+};
+
 // Base class for tree nodes
 struct TreeNode {
     virtual ~TreeNode() = default;  // enable polymorphism
@@ -147,11 +155,13 @@ struct Col : public Expr {
     std::string tab_name;
     std::string col_name;
     std::string alias; // std::string default value is ""
+    AggregationType aggr_type = NO_AGGR; // default value is NO_AGGR
 
     Col(std::string tab_name_, std::string col_name_) :
             tab_name(std::move(tab_name_)), col_name(std::move(col_name_)) {}
     Col(std::string tab_name_, std::string col_name_, std::string alias_) :
             tab_name(std::move(tab_name_)), col_name(std::move(col_name_)), alias(std::move(alias_)) {}
+    
 };
 
 struct SetClause : public TreeNode {
@@ -254,6 +264,8 @@ struct SemValue {
     std::string sv_str;
     bool sv_bool;
     OrderByDir sv_orderby_dir;
+    AggregationType sv_aggr_type;
+
     std::vector<std::string> sv_strs;
 
     std::shared_ptr<TreeNode> sv_node;

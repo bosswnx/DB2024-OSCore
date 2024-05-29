@@ -30,7 +30,8 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
             TabCol sel_col = {
                 .tab_name = sv_sel_col->tab_name,
                 .col_name = sv_sel_col->col_name,
-                .alias = sv_sel_col->alias
+                .alias = sv_sel_col->alias,
+                .aggr = sv_sel_col->aggr_type
             };
             query->cols.push_back(sel_col);
         }
@@ -43,7 +44,8 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
                 TabCol sel_col = {
                     .tab_name = col.tab_name,
                     .col_name = col.name,
-                    .alias = col.alias
+                    .alias = col.alias,
+                    .aggr = ast::NO_AGGR
                 };
                 query->cols.push_back(sel_col);
             }

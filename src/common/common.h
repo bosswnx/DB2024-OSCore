@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details. */
 #include <string>
 #include <vector>
 #include "defs.h"
+#include "parser/ast.h"
 #include "record/rm_defs.h"
 
 
@@ -23,6 +24,7 @@ struct TabCol {
     std::string tab_name;
     std::string col_name;
     std::string alias;
+    ast::AggregationType aggr; // see AggregationType in ast.h
 
     // 这个是用来干啥的
     friend bool operator<(const TabCol &x, const TabCol &y) {

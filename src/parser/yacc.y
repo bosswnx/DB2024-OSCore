@@ -21,8 +21,8 @@ using namespace ast;
 %define parse.error verbose
 
 // keywords
-%token SHOW TABLES CREATE TABLE DROP DESC INSERT INTO VALUES DELETE FROM ASC ORDER GROUP BY
-WHERE UPDATE SET SELECT AS INT CHAR FLOAT INDEX AND JOIN EXIT HELP TXN_BEGIN TXN_COMMIT TXN_ABORT TXN_ROLLBACK ORDER_BY ENABLE_NESTLOOP ENABLE_SORTMERGE
+%token SHOW TABLES CREATE TABLE DROP DESC INSERT INTO VALUES DELETE FROM ASC ORDER GROUP BY HAVING
+WHERE UPDATE SET SELECT MAX MIN SUM COUNT AS INT CHAR FLOAT INDEX AND JOIN EXIT HELP TXN_BEGIN TXN_COMMIT TXN_ABORT TXN_ROLLBACK ORDER_BY ENABLE_NESTLOOP ENABLE_SORTMERGE
 // non-keywords
 %token LEQ NEQ GEQ T_EOF
 
@@ -51,6 +51,7 @@ WHERE UPDATE SET SELECT AS INT CHAR FLOAT INDEX AND JOIN EXIT HELP TXN_BEGIN TXN
 %type <sv_conds> whereClause optWhereClause
 %type <sv_orderby>  order_clause opt_order_clause
 %type <sv_orderby_dir> opt_asc_desc
+%type <sv_aggr_type> opt_aggregate
 %type <sv_setKnobType> set_knob_type
 
 %%
@@ -269,6 +270,35 @@ col:
     {
         $$ = std::make_shared<Col>("", $1);
     }
+    // 这里是别名、聚合函数的处理
+    |   tbName '.' colName AS alias
+    {
+        $$ = std::make_shared<Col>($1, $3, $5);
+    }
+    |   colName AS alias
+    {
+        $$ = std::make_shared<Col>("", $1, $3);
+    }
+    |   opt_aggregate '(' tbName '.' colName ')'
+    {
+        $$ = std::make_shared<Col>($3, $5);
+        $$->aggr_type = $1;
+    }
+    |   opt_aggregate '(' tbName '.' colName ')' AS alias
+    {
+        $$ = std::make_shared<Col>($3, $5, $8);
+        $$->aggr_type = $1;
+    }
+    |   opt_aggregate '(' colName ')'
+    {
+        $$ = std::make_shared<Col>("", $3);
+        $$->aggr_type = $1;
+    }
+    |   opt_aggregate '(' colName ')' AS alias
+    {
+        $$ = std::make_shared<Col>("", $3, $6);
+        $$->aggr_type = $1;
+    }
     ;
 
 colList:
@@ -276,18 +306,8 @@ colList:
     {
         $$ = std::vector<std::shared_ptr<Col>>{$1};
     }
-    |   col AS alias
-    {
-        $1->alias = $3;
-        $$ = std::vector<std::shared_ptr<Col>>{$1};
-    }
     |   colList ',' col
     {
-        $$.push_back($3);
-    }
-    |   colList ',' col AS alias
-    {
-        $3->alias = $5;
         $$.push_back($3);
     }
     ;
@@ -391,6 +411,12 @@ opt_asc_desc:
     |  DESC      { $$ = OrderBy_DESC;    }
     |       { $$ = OrderBy_DEFAULT; }
     ;    
+
+opt_aggregate:
+    MAX { $$ = AGGR_TYPE_MAX; }
+    | MIN { $$ = AGGR_TYPE_MIN; }
+    | SUM { $$ = AGGR_TYPE_SUM; }
+    | COUNT { $$ = AGGR_TYPE_COUNT; }
 
 set_knob_type:
     ENABLE_NESTLOOP { $$ = EnableNestLoop; }
