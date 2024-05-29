@@ -26,7 +26,12 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
 
         // 处理target list，再target list中添加上表名，例如 a.id
         for (auto &sv_sel_col : x->cols) {
-            TabCol sel_col = {.tab_name = sv_sel_col->tab_name, .col_name = sv_sel_col->col_name};
+            /** TODO: 检查所 select 的 cols 的 alias 是否冲突？ */
+            TabCol sel_col = {
+                .tab_name = sv_sel_col->tab_name,
+                .col_name = sv_sel_col->col_name,
+                .alias = sv_sel_col->alias
+            };
             query->cols.push_back(sel_col);
         }
         
@@ -35,7 +40,11 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
         if (query->cols.empty()) {
             // select all columns
             for (auto &col : all_cols) {
-                TabCol sel_col = {.tab_name = col.tab_name, .col_name = col.name};
+                TabCol sel_col = {
+                    .tab_name = col.tab_name,
+                    .col_name = col.name,
+                    .alias = col.alias
+                };
                 query->cols.push_back(sel_col);
             }
         } else {

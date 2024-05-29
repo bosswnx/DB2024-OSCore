@@ -83,8 +83,10 @@ single_op ";"|"("|")"|","|"*"|"="|">"|"<"|"."
 "EXIT" { return EXIT; }
 "HELP" { return HELP; }
 "ORDER" { return ORDER; }
+"GROUP" {return GROUP; }
 "BY" {  return BY;  }
 "ASC" { return ASC; }
+"AS" {return AS; }
 "ENABLE_NESTLOOP" { return ENABLE_NESTLOOP; }
 "ENABLE_SORTMERGE" { return ENABLE_SORTMERGE; }
 "TRUE" { 

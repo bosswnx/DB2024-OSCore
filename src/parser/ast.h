@@ -146,9 +146,12 @@ struct BoolLit : public Value {
 struct Col : public Expr {
     std::string tab_name;
     std::string col_name;
+    std::string alias; // std::string default value is ""
 
     Col(std::string tab_name_, std::string col_name_) :
             tab_name(std::move(tab_name_)), col_name(std::move(col_name_)) {}
+    Col(std::string tab_name_, std::string col_name_, std::string alias_) :
+            tab_name(std::move(tab_name_)), col_name(std::move(col_name_)), alias(std::move(alias_)) {}
 };
 
 struct SetClause : public TreeNode {
