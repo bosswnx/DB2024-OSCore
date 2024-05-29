@@ -45,6 +45,10 @@ public:
         fed_conds_ = conds_;
     }
 
+    [[nodiscard]] size_t tupleLen() const override{
+        return len_;
+    }
+
     [[nodiscard]] const std::vector<ColMeta> &cols() const override {
         return cols_;
     };
@@ -70,31 +74,9 @@ public:
         char *base = handle->data;
         // 逻辑不短路，目前只实现逻辑与
         return std::all_of(conds_.begin(), conds_.end(), [base, this](const Condition& cond) {
-            auto value = col2Value(base, cond.lhs_col);
-            return cond.eval(value);
+            auto value = Value::col2Value(base, get_col_offset(cond.lhs_col));
+            return cond.eval_with_rvalue(value);
         });
-    }
-
-    Value col2Value(char *base, const TabCol &col) {
-        auto meta = get_col_offset(col);
-        Value value;
-        switch (meta.type) {
-            case TYPE_INT:
-                value.set_int(*(int *) (base + meta.offset));
-                break;
-            case TYPE_FLOAT:
-                value.set_float(*(float *) (base + meta.offset));
-                break;
-            case TYPE_STRING: {
-                std::string str((char *) (base + meta.offset), meta.len);
-                str.resize(str.find('\0'));     // 去掉末尾的'\0'
-                value.set_str(str);
-                break;
-            }
-            default:
-                throw InternalError("not implemented");
-        }
-        return value;
     }
 
     ColMeta get_col_offset(const TabCol &target) override {

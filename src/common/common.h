@@ -88,6 +88,27 @@ struct Value {
         }
     }
 
+    static Value col2Value(char *base, const ColMeta& meta) {
+        Value value;
+        switch (meta.type) {
+            case TYPE_INT:
+                value.set_int(*(int *) (base + meta.offset));
+                break;
+            case TYPE_FLOAT:
+                value.set_float(*(float *) (base + meta.offset));
+                break;
+            case TYPE_STRING: {
+                std::string str((char *) (base + meta.offset), meta.len);
+                str.resize(str.find('\0'));     // 去掉末尾的'\0'
+                value.set_str(str);
+                break;
+            }
+            default:
+                throw InternalError("not implemented");
+        }
+        return value;
+    }
+
     bool operator==(const Value &rhs) const {
         // 字符串不能和数字类型比较
         if ((this->type == TYPE_STRING && rhs.type != TYPE_STRING) ||
@@ -167,21 +188,25 @@ struct Condition {
     TabCol rhs_col;   // right-hand side column
     Value rhs_val;    // right-hand side value
 
-    [[nodiscard]] bool eval(const Value &lhs) const {
+    [[nodiscard]] bool eval_with_rvalue(const Value &lhs) const {
         assert(is_rhs_val);
+        return eval(lhs, rhs_val);
+    }
+
+    [[nodiscard]] bool eval(const Value &lhs, const Value &rhs) const{
         switch (op) {
             case OP_EQ:
-                return lhs == rhs_val;
+                return lhs == rhs;
             case OP_NE:
-                return lhs != rhs_val;
+                return lhs != rhs;
             case OP_LT:
-                return lhs < rhs_val;
+                return lhs < rhs;
             case OP_GT:
-                return lhs > rhs_val;
+                return lhs > rhs;
             case OP_LE:
-                return lhs <= rhs_val;
+                return lhs <= rhs;
             case OP_GE:
-                return lhs >= rhs_val;
+                return lhs >= rhs;
             default:
                 throw InternalError("not implemented");
         }

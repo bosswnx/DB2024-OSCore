@@ -56,7 +56,7 @@ struct RmRecord {
         return *this;
     };
 
-    RmRecord(int size_) {
+    explicit RmRecord(int size_) {
         size = size_;
         data = new char[size_];
         allocated_ = true;
