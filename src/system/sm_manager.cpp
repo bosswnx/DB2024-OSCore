@@ -85,7 +85,14 @@ void SmManager::drop_db(const std::string& db_name) {
  * @param {string&} db_name 数据库名称，与文件夹同名
  */
 void SmManager::open_db(const std::string& db_name) {
-    
+    if(chdir(db_name.c_str()) < 0){
+        throw UnixError();
+    }
+    std::ifstream ifs(DB_META_NAME);
+    ifs >> db_;
+    for(auto& [table_name,table_meta] : db_.tabs_){
+        fhs_[table_name] = rm_manager_->open_file(table_name);
+    }
 }
 
 /**
@@ -188,7 +195,19 @@ void SmManager::create_table(const std::string& tab_name, const std::vector<ColD
  * @param {Context*} context
  */
 void SmManager::drop_table(const std::string& tab_name, Context* context) {
-    
+    auto it1 = fhs_.find(tab_name);
+    if(it1 == fhs_.end()){
+        throw TableNotFoundError(tab_name);
+    }
+    rm_manager_->close_file(it1->second.get());
+    rm_manager_->destroy_file(tab_name);
+//    TODO: 删除索引
+//    auto it2 = ihs_.find(tab_name);
+//    if(it2 != ihs_.end()){
+//        ix_manager_->close_index(it2->second.get());
+//    }
+    fhs_.erase(tab_name);
+    db_.tabs_.erase(tab_name);
 }
 
 /**

@@ -43,7 +43,9 @@ RmScan::RmScan(const RmFileHandle *file_handle) : file_handle_(file_handle) {
             break;
         }
     }
-    assert(slot_no != -1);      // 所有页面全空
+    if(slot_no == -1){  // 所有页面全空，到达终点
+        page_no = -1;
+    }
     rid_ = Rid{page_no, slot_no};
 }
 

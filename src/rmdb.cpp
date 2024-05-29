@@ -71,7 +71,7 @@ void *client_handler(void *sock_fd) {
     int fd = *((int *)sock_fd);
     pthread_mutex_unlock(sockfd_mutex);
 
-    int i_recvBytes;
+    ssize_t i_recvBytes;
     // 接收客户端发送的请求
     char data_recv[BUFFER_LENGTH];
     // 需要返回给客户端的结果
@@ -99,7 +99,7 @@ void *client_handler(void *sock_fd) {
             break;
         }
         
-        printf("i_recvBytes: %d \n ", i_recvBytes);
+        printf("i_recvBytes: %ld \n ", i_recvBytes);
 
         if (strcmp(data_recv, "exit") == 0) {
             std::cout << "Client exit." << std::endl;
@@ -117,7 +117,7 @@ void *client_handler(void *sock_fd) {
 
         // 开启事务，初始化系统所需的上下文信息（包括事务对象指针、锁管理器指针、日志管理器指针、存放结果的buffer、记录结果长度的变量）
         Context *context = new Context(lock_manager.get(), log_manager.get(), nullptr, data_send, &offset);
-        SetTransaction(&txn_id, context);
+//        SetTransaction(&txn_id, context);     // 暂时注释掉，否则会SIGSEGV
 
         // 用于判断是否已经调用了yy_delete_buffer来删除buf
         bool finish_analyze = false;
@@ -178,11 +178,11 @@ void *client_handler(void *sock_fd) {
         if (write(fd, data_send, offset + 1) == -1) {
             break;
         }
-        // 如果是单挑语句，需要按照一个完整的事务来执行，所以执行完当前语句后，自动提交事务
-        if(context->txn_->get_txn_mode() == false)
-        {
-            txn_manager->commit(context->txn_, context->log_mgr_);
-        }
+        // 如果是单条语句，需要按照一个完整的事务来执行，所以执行完当前语句后，自动提交事务
+//        if(context->txn_->get_txn_mode() == false)    // 暂时注释掉，否则会SIGSEGV
+//        {
+//            txn_manager->commit(context->txn_, context->log_mgr_);
+//        }
     }
 
     // Clear
