@@ -72,6 +72,12 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
         }
         check_set_clause(query->tables.at(0), query->set_clauses);
     } else if (auto x = std::dynamic_pointer_cast<ast::DeleteStmt>(parse)) {
+        // delete语句只有一个表
+        query->tables.push_back(x->tab_name);
+        // 检查表是否存在
+        if (!sm_manager_->db_.is_table(x->tab_name)){
+            throw TableNotFoundError(x->tab_name);
+        }
         //处理where条件
         get_clause(x->conds, query->conds);
         check_where_clause({x->tab_name}, query->conds);
