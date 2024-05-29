@@ -50,6 +50,7 @@ WHERE UPDATE SET SELECT MAX MIN SUM COUNT AS INT CHAR FLOAT INDEX AND JOIN EXIT 
 %type <sv_cond> condition
 %type <sv_conds> whereClause optWhereClause
 %type <sv_orderby>  order_clause opt_order_clause
+%type <sv_groupby>  opt_group_clause
 %type <sv_orderby_dir> opt_asc_desc
 %type <sv_aggr_type> opt_aggregate
 %type <sv_setKnobType> set_knob_type
@@ -155,9 +156,9 @@ dml:
     {
         $$ = std::make_shared<UpdateStmt>($2, $4, $5);
     }
-    |   SELECT selector FROM tableList optWhereClause opt_order_clause
+    |   SELECT selector FROM tableList optWhereClause opt_order_clause opt_group_clause
     {
-        $$ = std::make_shared<SelectStmt>($2, $4, $5, $6);
+        $$ = std::make_shared<SelectStmt>($2, $4, $5, $6, $7);
     }
     ;
 
@@ -294,9 +295,19 @@ col:
         $$ = std::make_shared<Col>("", $3);
         $$->aggr_type = $1;
     }
+    |   opt_aggregate '(' '*' ')'
+    {
+        $$ = std::make_shared<Col>("", "*");
+        $$->aggr_type = $1;
+    }
     |   opt_aggregate '(' colName ')' AS alias
     {
         $$ = std::make_shared<Col>("", $3, $6);
+        $$->aggr_type = $1;
+    }
+    |   opt_aggregate '(' '*' ')' AS alias
+    {
+        $$ = std::make_shared<Col>("", "*", $6);
         $$->aggr_type = $1;
     }
     ;
@@ -395,6 +406,20 @@ opt_order_clause:
     ORDER BY order_clause      
     { 
         $$ = $3; 
+    }
+    |   /* epsilon */ { /* ignore*/ }
+    ;
+
+opt_group_clause:
+    GROUP BY colList
+    { 
+        auto group_by = std::make_shared<GroupBy>($3);
+        $$ = group_by;
+    }
+    | GROUP BY colList HAVING whereClause
+    {
+        auto group_by = std::make_shared<GroupBy>($3, $5);
+        $$ = group_by;
     }
     |   /* epsilon */ { /* ignore*/ }
     ;
