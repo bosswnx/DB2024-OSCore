@@ -69,6 +69,21 @@ struct Value {
         str_val = std::move(str_val_);
     }
 
+    bool try_cast_to(ColType target_type) {
+        if (type == target_type) {
+            return true;
+        }
+        if (type == TYPE_INT && target_type == TYPE_FLOAT) {
+            int2float();
+            return true;
+        }
+        if (type == TYPE_FLOAT && target_type == TYPE_INT) {
+            float2int();
+            return true;
+        }
+        return false;
+    }
+
     void init_raw(int len) {
 //        assert(raw == nullptr);
         if(raw != nullptr){
