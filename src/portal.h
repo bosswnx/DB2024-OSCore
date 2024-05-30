@@ -119,7 +119,7 @@ class Portal
     }
 
     // 遍历算子树并执行算子生成执行结果
-    void run(std::shared_ptr<PortalStmt> portal, QlManager* ql, txn_id_t *txn_id, Context *context){
+    static void run(const std::shared_ptr<PortalStmt>& portal, QlManager* ql, txn_id_t *txn_id, Context *context){
         switch(portal->tag) {
             case PORTAL_ONE_SELECT:
             {

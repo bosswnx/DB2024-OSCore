@@ -31,12 +31,15 @@ class DeleteExecutor : public AbstractExecutor {
         tab_name_ = tab_name;
         tab_ = sm_manager_->db_.get_table(tab_name);
         fh_ = sm_manager_->fhs_.at(tab_name).get();
-        conds_ = conds;
-        rids_ = rids;
+        conds_ = std::move(conds);
+        rids_ = std::move(rids);
         context_ = context;
     }
 
     std::unique_ptr<RmRecord> Next() override {
+        for (const Rid& rid: rids_) {
+            fh_->delete_record(rid, context_);
+        }
         return nullptr;
     }
 

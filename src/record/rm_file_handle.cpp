@@ -22,12 +22,9 @@ std::unique_ptr<RmRecord> RmFileHandle::get_record(const Rid &rid, Context *cont
     // 2. 初始化一个指向RmRecord的指针（赋值其内部的data和size）
     auto page_handle = fetch_page_handle(rid.page_no);
     auto record_size = page_handle.file_hdr->record_size;
-    char *buf = new char[record_size];
-    memcpy(buf, page_handle.get_slot(rid.slot_no), record_size);
     assert(Bitmap::is_set(page_handle.bitmap, rid.slot_no));    // 此记录必须有效
+    auto ptr = std::make_unique<RmRecord>(record_size, page_handle.get_slot(rid.slot_no));
     buffer_pool_manager_->unpin_page({fd_, rid.page_no}, false);
-    auto ptr = std::make_unique<RmRecord>(record_size, buf);
-    delete[] buf;
     return ptr;
 }
 

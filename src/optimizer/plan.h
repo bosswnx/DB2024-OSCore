@@ -90,7 +90,7 @@ class JoinPlan : public Plan
             conds_ = std::move(conds);
             type = INNER_JOIN;
         }
-        ~JoinPlan(){}
+        ~JoinPlan() override{}
         // 左节点
         std::shared_ptr<Plan> left_;
         // 右节点
