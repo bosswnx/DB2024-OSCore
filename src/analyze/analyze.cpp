@@ -42,9 +42,6 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
             } else {
                 has_non_aggr = true;
             }
-            // if(has_aggr && has_non_aggr && x->group == nullptr){
-            //     throw AmbiguousColumnError("in aggregate query without GROUP BY, columns must all be aggregated");
-            // }
             TabCol sel_col = {
                 .tab_name = sv_sel_col->tab_name,
                 .col_name = sv_sel_col->col_name,
@@ -281,8 +278,21 @@ void Analyze::check_where_clause(const std::vector<std::string> &tab_names, std:
             ColType lhs_type = lhs_col->type;
             ColType rhs_type;
             if (cond.is_rhs_val) {
-                // 这里是不是没有类型转换
-                cond.rhs_val.init_raw(lhs_col->len);
+                switch (cond.rhs_val.type)
+                {
+                case TYPE_INT:
+                    cond.rhs_val.init_raw(sizeof(int));
+                    break;
+                case TYPE_FLOAT:
+                    cond.rhs_val.init_raw(sizeof(float));
+                    break;
+                case TYPE_STRING:
+                    cond.rhs_val.init_raw(cond.rhs_val.str_val.size());
+                    break;
+                default:
+                    break;
+                }
+                
                 rhs_type = cond.rhs_val.type;
             } else {
                 TabMeta &rhs_tab = sm_manager_->db_.get_table(cond.rhs_col.tab_name);
