@@ -27,9 +27,10 @@ class AggregationExecutor : public AbstractExecutor {
     std::vector<ColMeta> sel_cols_;
     std::vector<ColMeta> sel_cols_initial_;
 
-    std::map<std::string, std::vector<std::unique_ptr<RmRecord>>> grouped_records_;
+    std::map<std::string, int> grouped_records_idx_;
+    std::vector<std::vector<std::unique_ptr<RmRecord>>> grouped_records_;
 
-    size_t curr_idx = -1; // 用于遍历    
+    int curr_idx = -1; // 用于遍历    
     std::vector<std::unique_ptr<RmRecord>> curr_records;
 
    public:
@@ -91,10 +92,11 @@ class AggregationExecutor : public AbstractExecutor {
         for (auto group_col : group_cols_) {
             key += std::string(record->data + group_col.offset, group_col.len);
         }
-        if (grouped_records_.find(key) == grouped_records_.end()) {
-            grouped_records_[key] = std::vector<std::unique_ptr<RmRecord>>();
+        if (grouped_records_idx_.find(key) == grouped_records_idx_.end()) {
+            grouped_records_idx_[key] = grouped_records_.size();
+            grouped_records_.push_back(std::vector<std::unique_ptr<RmRecord>>());
         }
-        grouped_records_.at(key).emplace_back(std::move(record));
+        grouped_records_[grouped_records_idx_[key]].push_back(std::move(record));
     }
 
     void beginTuple() override {
@@ -109,11 +111,10 @@ class AggregationExecutor : public AbstractExecutor {
         do {
             ++curr_idx;
             if (is_end()) return;
-            auto it = grouped_records_.begin();
-            std::advance(it, curr_idx);
-            // curr_records = it->second;
+            // curr_records = std::move(grouped_records_[curr_idx]);
+            auto &grouped_records = grouped_records_[curr_idx];
             curr_records.clear();
-            for (auto &record : it->second) {
+            for (auto &record : grouped_records) {
                 curr_records.push_back(std::move(record));
             }
         } while (!evalConditions());
@@ -251,7 +252,7 @@ class AggregationExecutor : public AbstractExecutor {
     }
 
     [[nodiscard]] bool is_end() const override{
-        return curr_idx >= grouped_records_.size();
+        return curr_idx >= (int)grouped_records_.size();
     }
 
     [[nodiscard]] const std::vector<ColMeta> &cols() const override{
