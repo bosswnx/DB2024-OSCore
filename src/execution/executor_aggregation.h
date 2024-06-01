@@ -129,7 +129,7 @@ class AggregationExecutor : public AbstractExecutor {
             // 逻辑不短路，目前只实现逻辑与
             if (!std::all_of(having_conds_.begin(), having_conds_.end(), [base, this](const Condition& cond) {
                 if(cond.lhs_col.aggr == ast::NO_AGGR) {
-                    auto value = Value::col2Value(base, get_col_offset(cond.lhs_col));
+                    auto value = Value::col2Value(base, *get_col(sel_cols_initial_, cond.lhs_col, false));
                     return cond.eval_with_rvalue(value);
                 } else {
                     ColMeta col_meta;
