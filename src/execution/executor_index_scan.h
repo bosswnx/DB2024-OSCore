@@ -77,4 +77,6 @@ class IndexScanExecutor : public AbstractExecutor {
     }
 
     Rid &rid() override { return rid_; }
+
+    ExecutorType getType() override { return ExecutorType::INDEX_SCAN_EXECUTOR; }
 };

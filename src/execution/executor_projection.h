@@ -27,9 +27,9 @@ class ProjectionExecutor : public AbstractExecutor {
         prev_ = std::move(prev);
 
         size_t curr_offset = 0;
-        auto &prev_cols = prev_->cols();    // 必须是`SeqScanExecutor`
+        auto &prev_cols = prev_->cols();    // 必须是`SeqScanExecutor` UPD: 不一定
         for (auto &sel_col : sel_cols) {
-            auto pos = get_col(prev_cols, sel_col);
+            auto pos = get_col(prev_cols, sel_col, true);
             sel_idxs_.push_back(pos - prev_cols.begin());
             auto col = *pos;
             col.offset = curr_offset;
@@ -52,6 +52,11 @@ class ProjectionExecutor : public AbstractExecutor {
     }
 
     [[nodiscard]] const std::vector<ColMeta> &cols() const override{
+        // return cols_;
+        // return prev_->cols();
+        if (prev_->getType() == ExecutorType::AGGREGATION_EXECUTOR) {
+            return prev_->cols();
+        }
         return cols_;
     }
 
@@ -68,4 +73,8 @@ class ProjectionExecutor : public AbstractExecutor {
     }
 
     Rid &rid() override { return _abstract_rid; }
+
+    ExecutorType getType() override {
+        return PROJECTION_EXECUTOR;
+    }
 };

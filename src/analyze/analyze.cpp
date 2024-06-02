@@ -28,19 +28,46 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
                 throw TableNotFoundError(table_name);
             }
         }
+        bool has_aggr = false;
+        bool has_non_aggr = false;
 
         // 处理target list，再target list中添加上表名，例如 a.id
         for (auto &sv_sel_col : x->cols) {
-            TabCol sel_col = {.tab_name = sv_sel_col->tab_name, .col_name = sv_sel_col->col_name};
+            // 检查 group by 和 sel_cols_中聚合函数 的合法性
+            if (x->group != nullptr && x->group->cols.empty()) {
+                throw AmbiguousColumnError("must have group by clause when using aggregate function");
+            }
+            if (sv_sel_col->aggr_type != ast::NO_AGGR) {
+                has_aggr = true;
+            } else {
+                has_non_aggr = true;
+            }
+            if (has_aggr && has_non_aggr && x->group == nullptr) {
+                throw AmbiguousColumnError("SELECT list contains both an aggregated and a non-aggregated column without GROUP BY clause");
+            }
+            TabCol sel_col = {
+                .tab_name = sv_sel_col->tab_name,
+                .col_name = sv_sel_col->col_name,
+                .alias = sv_sel_col->alias,
+                .aggr = sv_sel_col->aggr_type
+            };
             query->cols.push_back(sel_col);
         }
 
+        query->has_aggr = has_aggr;
+
         std::vector<ColMeta> all_cols;
         get_all_cols(query->tables, all_cols);
+        // 处理 select 的 columns
         if (query->cols.empty()) {
             // select all columns
             for (auto &col : all_cols) {
-                TabCol sel_col = {.tab_name = col.tab_name, .col_name = col.name};
+                TabCol sel_col = {
+                    .tab_name = col.tab_name,
+                    .col_name = col.name,
+                    .alias = col.alias,
+                    .aggr = ast::NO_AGGR
+                };
                 query->cols.push_back(sel_col);
             }
         } else {
@@ -49,9 +76,49 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
                 sel_col = check_column(all_cols, sel_col);  // 列元数据校验
             }
         }
+        // 处理 group by 子句
+        // group by 子句处理
+        if (x->group != nullptr) {
+            for (auto &sv_group_col : x->group->cols) {
+                TabCol group_col = {
+                    .tab_name = sv_group_col->tab_name,
+                    .col_name = sv_group_col->col_name,
+                    .alias = sv_group_col->alias,
+                    .aggr = sv_group_col->aggr_type
+                };
+                query->group_cols.push_back(group_col);
+            }
+            for (auto &sv_having_cond : x->group->conds) {
+                // having 和 where 一样的处理
+                get_clause(x->group->conds, query->having_conds);
+                check_where_clause(query->tables, query->having_conds, true);
+            }
+
+            // 检查合法性、给 group by 子句中的列补全表名
+            for (auto &group_col : query->group_cols) {
+                group_col = check_column(all_cols, group_col);
+            }
+
+            // SELECT 列表中不能出现没有在 GROUP BY 子句中的非聚集列
+            for (auto &sel_col : query->cols) {
+                if (sel_col.aggr == ast::NO_AGGR) {
+                    bool found = false;
+                    for (auto &group_col : query->group_cols) {
+                        if (sel_col.col_name == group_col.col_name && sel_col.tab_name == group_col.tab_name) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        throw AmbiguousColumnError("SELECT list contains non-aggregated column that is not in GROUP BY clause");
+                    }
+                }
+            }
+        }
+
         //处理where条件
         get_clause(x->conds, query->conds);
-        check_where_clause(query->tables, query->conds);
+        check_where_clause(query->tables, query->conds, false);
     } else if (auto x = std::dynamic_pointer_cast<ast::UpdateStmt>(parse)) {
         // update语句只有一个表
         query->tables.push_back(x->tab_name);
@@ -61,7 +128,7 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
         }
         get_clause(x->conds, query->conds);
         // 检查where子句的语义
-        check_where_clause(query->tables, query->conds);
+        check_where_clause(query->tables, query->conds, false);
         // 从语法树中提取set子句
         for(const auto& clause : x->set_clauses){
             query->set_clauses.push_back({
@@ -80,7 +147,7 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
         }
         //处理where条件
         get_clause(x->conds, query->conds);
-        check_where_clause({x->tab_name}, query->conds);
+        check_where_clause({x->tab_name}, query->conds, false);
     } else if (auto x = std::dynamic_pointer_cast<ast::InsertStmt>(parse)) {
         // 处理insert 的values值
         for (auto &sv_val : x->vals) {
@@ -125,6 +192,10 @@ TabCol Analyze::check_column(const std::vector<ColMeta> &all_cols, TabCol target
             }
         }
         if (tab_name.empty()) {
+            // 如果是 COUNT(*) 这种情况，不需要检查列名
+            if (target.aggr == ast::AGGR_TYPE_COUNT && target.col_name == "*") {
+                return target;
+            }
             throw ColumnNotFoundError(target.col_name);
         }
         target.tab_name = tab_name;
@@ -151,46 +222,91 @@ void Analyze::get_clause(const std::vector<std::shared_ptr<ast::BinaryExpr>> &sv
     conds.clear();
     for (auto &expr : sv_conds) {
         Condition cond;
-        cond.lhs_col = {.tab_name = expr->lhs->tab_name, .col_name = expr->lhs->col_name};
+        cond.lhs_col = {
+            .tab_name = expr->lhs->tab_name, 
+            .col_name = expr->lhs->col_name,
+            .alias = expr->lhs->alias,
+            .aggr = expr->lhs->aggr_type
+        };
         cond.op = convert_sv_comp_op(expr->op);
         if (auto rhs_val = std::dynamic_pointer_cast<ast::Value>(expr->rhs)) {
             cond.is_rhs_val = true;
             cond.rhs_val = convert_sv_value(rhs_val);
         } else if (auto rhs_col = std::dynamic_pointer_cast<ast::Col>(expr->rhs)) {
             cond.is_rhs_val = false;
-            cond.rhs_col = {.tab_name = rhs_col->tab_name, .col_name = rhs_col->col_name};
+            cond.rhs_col = {
+                .tab_name = rhs_col->tab_name,
+                .col_name = rhs_col->col_name,
+                .alias = rhs_col->alias,
+                .aggr = rhs_col->aggr_type
+            };
         }
         conds.push_back(cond);
     }
 }
 
 /// where子句语义检查，包括检查是否存在模糊的字段名，操作符两侧的列名是否存在，两侧类型是否支持操作符
-void Analyze::check_where_clause(const std::vector<std::string> &tab_names, std::vector<Condition> &conds) {
+void Analyze::check_where_clause(const std::vector<std::string> &tab_names, std::vector<Condition> &conds, bool is_having) {
     // auto all_cols = get_all_cols(tab_names);
     std::vector<ColMeta> all_cols;
     get_all_cols(tab_names, all_cols);
     // Get raw values in where clause
     for (auto &cond : conds) {
+        // where 子句不能有聚合函数
+        if (!is_having && (cond.lhs_col.aggr != ast::NO_AGGR) || (!cond.is_rhs_val && cond.rhs_col.aggr != ast::NO_AGGR)) {
+            throw AmbiguousColumnError("aggregate functions are not allowed in WHERE clause");
+        } 
+
         // Infer table name from column name
         cond.lhs_col = check_column(all_cols, cond.lhs_col);
         if (!cond.is_rhs_val) {     // 如果右手边也是列，也需要检查列的合法性
             cond.rhs_col = check_column(all_cols, cond.rhs_col);
         }
-        TabMeta &lhs_tab = sm_manager_->db_.get_table(cond.lhs_col.tab_name);
-        auto lhs_col = lhs_tab.get_col(cond.lhs_col.col_name);
-        ColType lhs_type = lhs_col->type;
-        ColType rhs_type;
-        if (cond.is_rhs_val) {
-            cond.rhs_val.init_raw(lhs_col->len);
-            rhs_type = cond.rhs_val.type;
+
+        if (cond.lhs_col.aggr == ast::AGGR_TYPE_COUNT && cond.lhs_col.col_name == "*") {
+            ColType lhs_type = TYPE_INT;
+            ColType rhs_type;
+            if (cond.is_rhs_val) {
+                cond.rhs_val.init_raw(sizeof(int));
+                rhs_type = cond.rhs_val.type;
+            } else {
+                rhs_type = sm_manager_->db_.get_table(cond.rhs_col.tab_name).get_col(cond.rhs_col.col_name)->type;
+            }
+            if(!colTypeCanHold(lhs_type, rhs_type)){
+                throw IncompatibleTypeError(coltype2str(lhs_type), coltype2str(rhs_type));
+            }
         } else {
-            TabMeta &rhs_tab = sm_manager_->db_.get_table(cond.rhs_col.tab_name);
-            auto rhs_col = rhs_tab.get_col(cond.rhs_col.col_name);
-            rhs_type = rhs_col->type;
+            TabMeta &lhs_tab = sm_manager_->db_.get_table(cond.lhs_col.tab_name);
+            auto lhs_col = lhs_tab.get_col(cond.lhs_col.col_name);
+            ColType lhs_type = lhs_col->type;
+            ColType rhs_type;
+            if (cond.is_rhs_val) {
+                switch (cond.rhs_val.type)
+                {
+                case TYPE_INT:
+                    cond.rhs_val.init_raw(sizeof(int));
+                    break;
+                case TYPE_FLOAT:
+                    cond.rhs_val.init_raw(sizeof(float));
+                    break;
+                case TYPE_STRING:
+                    cond.rhs_val.init_raw(cond.rhs_val.str_val.size());
+                    break;
+                default:
+                    break;
+                }
+                
+                rhs_type = cond.rhs_val.type;
+            } else {
+                TabMeta &rhs_tab = sm_manager_->db_.get_table(cond.rhs_col.tab_name);
+                auto rhs_col = rhs_tab.get_col(cond.rhs_col.col_name);
+                rhs_type = rhs_col->type;
+            }
+            if(!colTypeCanHold(lhs_type, rhs_type)){
+                throw IncompatibleTypeError(coltype2str(lhs_type), coltype2str(rhs_type));
+            }
         }
-        if(!colTypeCanHold(lhs_type, rhs_type)){
-            throw IncompatibleTypeError(coltype2str(lhs_type), coltype2str(rhs_type));
-        }
+        
     }
 }
 

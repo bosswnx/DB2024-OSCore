@@ -40,7 +40,7 @@ struct Rid {
 };
 
 enum ColType {
-    TYPE_INT, TYPE_FLOAT, TYPE_STRING
+    TYPE_INT, TYPE_FLOAT, TYPE_STRING, TYPE_NULL
 };
 
 // `static` 将`colTypeCanHold`改为internal linkage，否则无法通过编译。

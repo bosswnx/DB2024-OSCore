@@ -16,13 +16,17 @@ See the Mulan PSL v2 for more details. */
 #include <string>
 #include <vector>
 #include "defs.h"
+#include "parser/ast.h"
 #include "record/rm_defs.h"
 
 
 struct TabCol {
     std::string tab_name;
     std::string col_name;
+    std::string alias;
+    ast::AggregationType aggr; // see AggregationType in ast.h
 
+    // 这个是用来干啥的
     friend bool operator<(const TabCol &x, const TabCol &y) {
         return std::make_pair(x.tab_name, x.col_name) < std::make_pair(y.tab_name, y.col_name);
     }
@@ -63,6 +67,21 @@ struct Value {
     void set_str(std::string str_val_) {
         type = TYPE_STRING;
         str_val = std::move(str_val_);
+    }
+
+    bool try_cast_to(ColType target_type) {
+        if (type == target_type) {
+            return true;
+        }
+        if (type == TYPE_INT && target_type == TYPE_FLOAT) {
+            int2float();
+            return true;
+        }
+        if (type == TYPE_FLOAT && target_type == TYPE_INT) {
+            float2int();
+            return true;
+        }
+        return false;
     }
 
     void init_raw(int len) {

@@ -99,4 +99,8 @@ public:
         rid_ = scan_->rid();    // TODO：没必要维护一个`rid_`跟踪`RmScan.rid_`的变化，目前删掉`rid_`需要改动接口，未来可以删掉`rid_`
         return rid_;
     }
+
+    ExecutorType getType() override {
+        return SEQ_SCAN_EXECUTOR;
+    }
 };

@@ -43,9 +43,11 @@ class InsertExecutor : public AbstractExecutor {
         for (size_t i = 0; i < values_.size(); i++) {
             auto &col = tab_.cols[i];
             auto &val = values_[i];
-            if (col.type != val.type) {
+            if (col.type != val.type && !colTypeCanHold(col.type, val.type)) {
                 throw IncompatibleTypeError(coltype2str(col.type), coltype2str(val.type));
             }
+            // 尝试转换类型, 目前是 int -> float or float -> int
+            val.try_cast_to(col.type);
             val.init_raw(col.len);
             memcpy(rec.data + col.offset, val.raw->data, col.len);
         }
@@ -66,4 +68,6 @@ class InsertExecutor : public AbstractExecutor {
         return nullptr;
     }
     Rid &rid() override { return rid_; }
+
+    ExecutorType getType() override { return ExecutorType::INSERT_EXECUTOR; }
 };

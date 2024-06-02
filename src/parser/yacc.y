@@ -21,8 +21,8 @@ using namespace ast;
 %define parse.error verbose
 
 // keywords
-%token SHOW TABLES CREATE TABLE DROP DESC INSERT INTO VALUES DELETE FROM ASC ORDER BY
-WHERE UPDATE SET SELECT INT CHAR FLOAT INDEX AND JOIN EXIT HELP TXN_BEGIN TXN_COMMIT TXN_ABORT TXN_ROLLBACK ORDER_BY ENABLE_NESTLOOP ENABLE_SORTMERGE
+%token SHOW TABLES CREATE TABLE DROP DESC INSERT INTO VALUES DELETE FROM ASC ORDER GROUP BY HAVING
+WHERE UPDATE SET SELECT MAX MIN SUM COUNT AS INT CHAR FLOAT INDEX AND JOIN EXIT HELP TXN_BEGIN TXN_COMMIT TXN_ABORT TXN_ROLLBACK ORDER_BY ENABLE_NESTLOOP ENABLE_SORTMERGE
 // non-keywords
 %token LEQ NEQ GEQ T_EOF
 
@@ -41,7 +41,7 @@ WHERE UPDATE SET SELECT INT CHAR FLOAT INDEX AND JOIN EXIT HELP TXN_BEGIN TXN_CO
 %type <sv_expr> expr
 %type <sv_val> value
 %type <sv_vals> valueList
-%type <sv_str> tbName colName
+%type <sv_str> tbName colName alias
 %type <sv_strs> tableList colNameList
 %type <sv_col> col
 %type <sv_cols> colList selector
@@ -50,7 +50,9 @@ WHERE UPDATE SET SELECT INT CHAR FLOAT INDEX AND JOIN EXIT HELP TXN_BEGIN TXN_CO
 %type <sv_cond> condition
 %type <sv_conds> whereClause optWhereClause
 %type <sv_orderby>  order_clause opt_order_clause
+%type <sv_groupby>  opt_group_clause
 %type <sv_orderby_dir> opt_asc_desc
+%type <sv_aggr_type> opt_aggregate
 %type <sv_setKnobType> set_knob_type
 
 %%
@@ -154,9 +156,9 @@ dml:
     {
         $$ = std::make_shared<UpdateStmt>($2, $4, $5);
     }
-    |   SELECT selector FROM tableList optWhereClause opt_order_clause
+    |   SELECT selector FROM tableList optWhereClause opt_order_clause opt_group_clause
     {
-        $$ = std::make_shared<SelectStmt>($2, $4, $5, $6);
+        $$ = std::make_shared<SelectStmt>($2, $4, $5, $6, $7);
     }
     ;
 
@@ -269,6 +271,45 @@ col:
     {
         $$ = std::make_shared<Col>("", $1);
     }
+    // 这里是别名、聚合函数的处理
+    |   tbName '.' colName AS alias
+    {
+        $$ = std::make_shared<Col>($1, $3, $5);
+    }
+    |   colName AS alias
+    {
+        $$ = std::make_shared<Col>("", $1, $3);
+    }
+    |   opt_aggregate '(' tbName '.' colName ')'
+    {
+        $$ = std::make_shared<Col>($3, $5);
+        $$->aggr_type = $1;
+    }
+    |   opt_aggregate '(' tbName '.' colName ')' AS alias
+    {
+        $$ = std::make_shared<Col>($3, $5, $8);
+        $$->aggr_type = $1;
+    }
+    |   opt_aggregate '(' colName ')'
+    {
+        $$ = std::make_shared<Col>("", $3);
+        $$->aggr_type = $1;
+    }
+    |   opt_aggregate '(' '*' ')'
+    {
+        $$ = std::make_shared<Col>("", "*");
+        $$->aggr_type = $1;
+    }
+    |   opt_aggregate '(' colName ')' AS alias
+    {
+        $$ = std::make_shared<Col>("", $3, $6);
+        $$->aggr_type = $1;
+    }
+    |   opt_aggregate '(' '*' ')' AS alias
+    {
+        $$ = std::make_shared<Col>("", "*", $6);
+        $$->aggr_type = $1;
+    }
     ;
 
 colList:
@@ -369,6 +410,20 @@ opt_order_clause:
     |   /* epsilon */ { /* ignore*/ }
     ;
 
+opt_group_clause:
+    GROUP BY colList
+    { 
+        auto group_by = std::make_shared<GroupBy>($3);
+        $$ = group_by;
+    }
+    | GROUP BY colList HAVING whereClause
+    {
+        auto group_by = std::make_shared<GroupBy>($3, $5);
+        $$ = group_by;
+    }
+    |   /* epsilon */ { /* ignore*/ }
+    ;
+
 order_clause:
       col  opt_asc_desc 
     { 
@@ -382,6 +437,12 @@ opt_asc_desc:
     |       { $$ = OrderBy_DEFAULT; }
     ;    
 
+opt_aggregate:
+    MAX { $$ = AGGR_TYPE_MAX; }
+    | MIN { $$ = AGGR_TYPE_MIN; }
+    | SUM { $$ = AGGR_TYPE_SUM; }
+    | COUNT { $$ = AGGR_TYPE_COUNT; }
+
 set_knob_type:
     ENABLE_NESTLOOP { $$ = EnableNestLoop; }
     |   ENABLE_SORTMERGE { $$ = EnableSortMerge; }
@@ -390,4 +451,6 @@ set_knob_type:
 tbName: IDENTIFIER;
 
 colName: IDENTIFIER;
+
+alias: IDENTIFIER;
 %%
