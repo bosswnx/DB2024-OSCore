@@ -162,7 +162,11 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot, 
     std::fstream outfile;
     outfile.open("output.txt", std::ios::out | std::ios::app);
 
-    bool printed_header = false;
+    outfile << "|";
+    for(int i = 0; i < captions.size(); ++i) {
+        outfile << " " << captions[i] << " |";
+    }
+    outfile << "\n";
 
     // Print records
     size_t num_rec = 0;
@@ -188,16 +192,6 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot, 
                 col_str = "NULL";
             }
             columns.push_back(col_str);
-        }
-
-        if (!printed_header) {
-            // print header into file
-            printed_header = true;
-            outfile << "|";
-            for(int i = 0; i < captions.size(); ++i) {
-                outfile << " " << captions[i] << " |";
-            }
-            outfile << "\n";
         }
 
         // print record into buffer
