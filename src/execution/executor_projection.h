@@ -52,6 +52,11 @@ class ProjectionExecutor : public AbstractExecutor {
     }
 
     [[nodiscard]] const std::vector<ColMeta> &cols() const override{
+        // return cols_;
+        // return prev_->cols();
+        if (prev_->getType() == ExecutorType::AGGREGATION_EXECUTOR) {
+            return prev_->cols();
+        }
         return cols_;
     }
 
@@ -68,4 +73,8 @@ class ProjectionExecutor : public AbstractExecutor {
     }
 
     Rid &rid() override { return _abstract_rid; }
+
+    ExecutorType getType() override {
+        return PROJECTION_EXECUTOR;
+    }
 };

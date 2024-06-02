@@ -68,4 +68,6 @@ class InsertExecutor : public AbstractExecutor {
         return nullptr;
     }
     Rid &rid() override { return rid_; }
+
+    ExecutorType getType() override { return ExecutorType::INSERT_EXECUTOR; }
 };

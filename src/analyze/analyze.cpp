@@ -42,6 +42,9 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
             } else {
                 has_non_aggr = true;
             }
+            if (has_aggr && has_non_aggr && x->group == nullptr) {
+                throw AmbiguousColumnError("SELECT list contains both an aggregated and a non-aggregated column without GROUP BY clause");
+            }
             TabCol sel_col = {
                 .tab_name = sv_sel_col->tab_name,
                 .col_name = sv_sel_col->col_name,

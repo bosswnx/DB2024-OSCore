@@ -15,6 +15,18 @@ See the Mulan PSL v2 for more details. */
 #include "index/ix.h"
 #include "system/sm.h"
 
+enum ExecutorType {
+    AGGREGATION_EXECUTOR,
+    DELETE_EXECUTOR,
+    PROJECTION_EXECUTOR,
+    SEQ_SCAN_EXECUTOR,
+    UPDATE_EXECUTOR,
+    NESTEDLOOP_JOIN_EXECUTOR,
+    SORT_EXECUTOR,
+    INSERT_EXECUTOR,
+    INDEX_SCAN_EXECUTOR,
+};
+
 class AbstractExecutor {
    public:
     Rid _abstract_rid;
@@ -31,7 +43,7 @@ class AbstractExecutor {
         throw InternalError("virtual member function not implemented");
     };
 
-    virtual std::string getType() {
+    virtual ExecutorType getType() {
         throw InternalError("virtual member function not implemented");
     };
 

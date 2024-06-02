@@ -22,7 +22,6 @@ class AggregationExecutor : public AbstractExecutor {
     std::vector<Condition> having_conds_;
     
     std::vector<ColMeta> group_cols_;
-    std::vector<size_t> sel_group_idxs_;    
 
     std::vector<ColMeta> sel_cols_;
     std::vector<ColMeta> sel_cols_initial_;
@@ -33,6 +32,8 @@ class AggregationExecutor : public AbstractExecutor {
     int curr_idx = -1; // 用于遍历    
     std::vector<std::unique_ptr<RmRecord>> curr_records;
 
+    bool empty_table_aggr_ = false;
+
    public:
     AggregationExecutor(std::unique_ptr<AbstractExecutor> prev, const std::vector<TabCol> &sel_cols, 
         const std::vector<TabCol> &group_cols, const std::vector<Condition> &having_conds) {
@@ -40,11 +41,9 @@ class AggregationExecutor : public AbstractExecutor {
 
         auto &prev_cols = prev_->cols();    // 获取上一个算子的列信息
 
-        // 得到group_cols的idx和列信息
         for (auto &sel_group_col : group_cols) {
             auto pos = get_col(prev_cols, sel_group_col, false);
             group_cols_.push_back(*pos);
-            sel_group_idxs_.push_back(pos - prev_cols.begin());
         }
 
         for (auto &sel_col : sel_cols) {
@@ -109,6 +108,12 @@ class AggregationExecutor : public AbstractExecutor {
 
     void nextTuple() override {
         do {
+            if (grouped_records_.empty() && group_cols_.empty()) {
+                if (!empty_table_aggr_) {
+                    empty_table_aggr_ = true;
+                    return;
+                }
+            }
             ++curr_idx;
             if (is_end()) return;
             // curr_records = std::move(grouped_records_[curr_idx]);
@@ -167,6 +172,13 @@ class AggregationExecutor : public AbstractExecutor {
 
     Value aggregate_value(ColMeta sel_col) {
         Value val;
+        // 处理空表的情况
+        if (curr_records.empty()) {
+            val.type = sel_col.type;
+            val.init_raw(sel_col.len);
+            val.type = TYPE_NULL;
+            return val;
+        }
         switch (sel_col.aggr) {
             case ast::NO_AGGR:
                 val = Value::col2Value(curr_records[0]->data, sel_col);
@@ -261,9 +273,16 @@ class AggregationExecutor : public AbstractExecutor {
 
     std::unique_ptr<RmRecord> Next() override {
         std::vector<Value> values;
+
+        int idx = 0;
         for (auto sel_col : sel_cols_initial_) {
             Value val = aggregate_value(sel_col);
+            if (val.type == TYPE_NULL) {
+                // 将 sel_cols 中对应的TYPE改成NULl
+                sel_cols_[idx].type = TYPE_NULL; // 为了能够正常识别到。
+            }
             values.push_back(val);
+            ++idx;
         }
 
         auto data = std::make_unique<char[]>(len_);
@@ -279,4 +298,8 @@ class AggregationExecutor : public AbstractExecutor {
     }
 
     Rid &rid() override { return _abstract_rid; }
+
+    ExecutorType getType() override {
+        return ExecutorType::AGGREGATION_EXECUTOR;
+    }
 };

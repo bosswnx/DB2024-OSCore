@@ -44,4 +44,6 @@ class DeleteExecutor : public AbstractExecutor {
     }
 
     Rid &rid() override { return _abstract_rid; }
+
+    ExecutorType getType() override { return ExecutorType::DELETE_EXECUTOR; }
 };

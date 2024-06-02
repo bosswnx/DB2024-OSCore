@@ -129,4 +129,8 @@ public:
     }
 
     Rid &rid() override { return _abstract_rid; }
+
+    ExecutorType getType() override {
+        return NESTEDLOOP_JOIN_EXECUTOR;
+    }
 };

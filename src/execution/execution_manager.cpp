@@ -184,6 +184,8 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot, 
             } else if (col.type == TYPE_STRING) {
                 col_str = std::string((char *)rec_buf, col.len);
                 col_str.resize(strlen(col_str.c_str()));
+            } else if (col.type == TYPE_NULL) {
+                col_str = "NULL";
             }
             columns.push_back(col_str);
         }

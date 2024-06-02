@@ -55,4 +55,6 @@ public:
     }
 
     Rid &rid() override { return _abstract_rid; }
+
+    ExecutorType getType() override { return ExecutorType::UPDATE_EXECUTOR; }
 };
