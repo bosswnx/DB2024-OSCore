@@ -14,10 +14,10 @@ See the Mulan PSL v2 for more details. */
 #include <cstring>
 #include <memory>
 #include <string>
-#include <vector>
 #include "defs.h"
 #include "parser/ast.h"
 #include "record/rm_defs.h"
+#include "system/sm_meta.h"
 
 
 struct TabCol {
