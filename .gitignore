@@ -3,4 +3,5 @@ build/
 cmake-build-debug/
 .vscode/
 .idea/
-compcompile_commands.json
+compile_commands.json
+.cache/
