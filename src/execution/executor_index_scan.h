@@ -22,9 +22,11 @@ class IndexScanExecutor : public AbstractExecutor {
     TabMeta tab_;                               // 表的元数据
     std::vector<Condition> conds_;              // 扫描条件
     RmFileHandle *fh_;                          // 表的数据文件句柄
+    IxIndexHandle *ih_;
     std::vector<ColMeta> cols_;                 // 需要读取的字段
     size_t len_;                                // 选取出来的一条记录的长度
     std::vector<Condition> fed_conds_;          // 扫描条件，和conds_字段相同
+    std::vector<Condition> index_conds_;
 
     std::vector<std::string> index_col_names_;  // index scan涉及到的索引包含的字段
     IndexMeta index_meta_;                      // index scan涉及到的索引元数据
@@ -33,6 +35,8 @@ class IndexScanExecutor : public AbstractExecutor {
     std::unique_ptr<RecScan> scan_;
 
     SmManager *sm_manager_;
+
+
 
    public:
     IndexScanExecutor(SmManager *sm_manager, std::string tab_name, std::vector<Condition> conds, std::vector<std::string> index_col_names,
@@ -46,6 +50,7 @@ class IndexScanExecutor : public AbstractExecutor {
         index_col_names_ = index_col_names; 
         index_meta_ = *(tab_.get_index_meta(index_col_names_));
         fh_ = sm_manager_->fhs_.at(tab_name_).get();
+        ih_ = sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name_, index_col_names_)).get();
         cols_ = tab_.cols;
         len_ = cols_.back().offset + cols_.back().len;
         std::map<CompOp, CompOp> swap_op = {
@@ -62,19 +67,84 @@ class IndexScanExecutor : public AbstractExecutor {
             }
         }
         fed_conds_ = conds_;
+
+        for (auto &cond : conds_) {
+            if (cond.lhs_col.tab_name == tab_name_ && index_meta_.has_col(cond.lhs_col.col_name)) {
+                index_conds_.push_back(cond);
+            }
+        }
     }
 
     void beginTuple() override {
-        
+        // 索引扫描的实现
+        // 1. 根据条件找到索引的起始位置
+        // 2. 从起始位置开始扫描索引，找到满足条件的记录
+        // 3. 从数据文件中读取记录
+        // 4. 返回记录
+
+        auto lower_k = new char[index_meta_.col_tot_len];
+        auto upper_k = new char[index_meta_.col_tot_len];
+        // 需要根据条件填充lower_k和upper_k
+        // 暂时只考虑 OP:EQ 的情况，l是col，r是val
+        size_t offset = 0;
+        for (auto &cond : index_conds_) {
+            if (cond.op == OP_EQ) {
+                auto col_meta = *tab_.get_col(cond.lhs_col.col_name);
+                memcpy(lower_k + offset, cond.rhs_val.raw->data, col_meta.len);
+                memcpy(upper_k + offset, cond.rhs_val.raw->data, col_meta.len);
+            }
+            offset += tab_.get_col(cond.lhs_col.col_name)->len;
+        }
+
+        Iid lower_iid = ih_->lower_bound(lower_k);
+        Iid upper_iid = ih_->upper_bound(upper_k);
+
+        scan_ = std::make_unique<IxScan>(ih_, lower_iid, upper_iid, ih_->get_buffer_pool_manager());
+
+        // 查看是否有符合的
+        while (!scan_->is_end() && !evalConditions()) {
+            scan_->next();
+        }
     }
 
+    bool evalConditions() {
+        auto handle = fh_->get_record(scan_->rid(), context_);
+        char *base = handle->data;
+        // 逻辑不短路，目前只实现逻辑与
+        return std::all_of(conds_.begin(), conds_.end(), [base, this](const Condition& cond) {
+            auto value = Value::col2Value(base, get_col_offset(cond.lhs_col));
+            return cond.eval_with_rvalue(value);
+        });
+    }
+
+    ColMeta get_col_offset(const TabCol &target) override {
+        auto it = std::find_if(cols_.begin(), cols_.end(), [&target](const ColMeta &col) {
+            return col.name == target.col_name;
+        });
+        assert(it != cols_.end());
+        return *it;
+    }
+
+
     void nextTuple() override {
-        
+        if (scan_->is_end()) return;
+        scan_->next();
+        while (!scan_->is_end() && !evalConditions()) {
+            scan_->next();
+        }
     }
 
     std::unique_ptr<RmRecord> Next() override {
-        return nullptr;
+        return fh_->get_record(scan_->rid(), context_);
     }
+
+    [[nodiscard]] bool is_end() const override {
+        return scan_->is_end();
+    }
+
+    [[nodiscard]] const std::vector<ColMeta> &cols() const override {
+        return cols_;
+    };
 
     Rid &rid() override { return rid_; }
 

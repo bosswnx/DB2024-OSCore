@@ -120,6 +120,11 @@ class IndexNotFoundError : public RMDBError {
     }
 };
 
+class IndexKeyDuplicateError : public RMDBError {
+    public:
+     IndexKeyDuplicateError() : RMDBError("Index key duplicate.") {}
+};
+
 class IndexExistsError : public RMDBError {
    public:
     IndexExistsError(const std::string &tab_name, const std::vector<std::string> &col_names) {

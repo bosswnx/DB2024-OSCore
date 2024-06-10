@@ -102,6 +102,8 @@ class IxNodeHandle {
 
     char *get_key(int key_idx) const { return keys + key_idx * file_hdr->col_tot_len_; }
 
+    int get_key_pos(const char *key);
+
     Rid *get_rid(int rid_idx) const { return &rids[rid_idx]; }
 
     void set_key(int key_idx, const char *key) { memcpy(keys + key_idx * file_hdr->col_tot_len_, key, file_hdr->col_tot_len_); }
@@ -148,6 +150,7 @@ class IxNodeHandle {
     int find_child(IxNodeHandle *child) {
         int rid_idx;
         for (rid_idx = 0; rid_idx < page_hdr->num_key; rid_idx++) {
+            // 一个节点一个page
             if (get_rid(rid_idx)->page_no == child->get_page_no()) {
                 break;
             }
@@ -170,8 +173,15 @@ class IxIndexHandle {
     std::mutex root_latch_;
 
    public:
+
     IxIndexHandle(DiskManager *disk_manager, BufferPoolManager *buffer_pool_manager, int fd);
 
+    int get_fd() const { return fd_; }
+    int get_page_cnt() const { return file_hdr_->num_pages_; }
+
+    BufferPoolManager *get_buffer_pool_manager() const { return buffer_pool_manager_; }
+
+    
     // for search
     bool get_value(const char *key, std::vector<Rid> *result, Transaction *transaction);
 
