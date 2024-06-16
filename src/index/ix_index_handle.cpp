@@ -401,9 +401,10 @@ page_id_t IxIndexHandle::insert_entry(const char *key, const Rid &value, Transac
     // 1. 查找key值应该插入到哪个叶子节点
     auto leaf_node = find_leaf_page(key, Operation::INSERT, transaction).first;
     // 2. 在该叶子节点中插入键值对
+    int kv_num_before = leaf_node->get_size();
     int kv_num = leaf_node->insert(key, value);
 
-    if (kv_num == leaf_node->get_max_size()) {
+    if (kv_num_before != kv_num && kv_num == leaf_node->get_max_size()) {
         // full, we split it
         auto new_leaf_node = split(leaf_node);
         // 并把新结点的相关信息插入父节点
@@ -415,7 +416,7 @@ page_id_t IxIndexHandle::insert_entry(const char *key, const Rid &value, Transac
             file_hdr_->last_leaf_ == new_leaf_node->get_page_no();
         }
     }
-    buffer_pool_manager_->unpin_page(leaf_node->get_page_id(), true);
+    buffer_pool_manager_->unpin_page(leaf_node->get_page_id(), kv_num_before != kv_num);
     return leaf_node->get_page_no();
 }
 

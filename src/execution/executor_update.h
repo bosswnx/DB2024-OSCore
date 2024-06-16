@@ -50,6 +50,24 @@ public:
                 memcpy(buf.get() + col->offset, clause.rhs.raw->data, col->len);
             }
             fh_->update_record(rid, buf.get(), context_);
+            
+            // Update index
+            for (auto &index: tab_.indexes) {
+                auto ih = sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name_, index.cols)).get();
+                char *key_old = new char[index.col_tot_len];
+                char *key_new = new char[index.col_tot_len];
+                size_t offset = 0;
+                for (int i = 0; i < index.col_num; i++) {
+                    auto col = tab_.get_col(index.cols[i].name);
+                    memcpy(key_old + offset, record->data + col->offset, col->len);
+                    memcpy(key_new + offset, buf.get() + col->offset, col->len);
+                    offset += col->len;
+                }
+                ih->delete_entry(key_old, context_->txn_);
+                ih->insert_entry(key_new, rid, context_->txn_);
+                delete[] key_old;
+                delete[] key_new;
+            }
         }
         return nullptr;
     }

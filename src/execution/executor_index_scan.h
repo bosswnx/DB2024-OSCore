@@ -68,9 +68,16 @@ class IndexScanExecutor : public AbstractExecutor {
         }
         fed_conds_ = conds_;
 
-        for (auto &cond : conds_) {
-            if (cond.lhs_col.tab_name == tab_name_ && index_meta_.has_col(cond.lhs_col.col_name)) {
-                index_conds_.push_back(cond);
+        // for (auto &cond : conds_) {
+        //     if (cond.lhs_col.tab_name == tab_name_ && index_meta_.has_col(cond.lhs_col.col_name)) {
+        //         index_conds_.push_back(cond);
+        //     }
+        // }
+        for (auto &col_name : index_col_names_) {
+            for (auto &cond : conds_) {
+                if (cond.lhs_col.col_name == col_name) {
+                    index_conds_.push_back(cond);
+                }
             }
         }
     }
@@ -84,16 +91,53 @@ class IndexScanExecutor : public AbstractExecutor {
 
         auto lower_k = new char[index_meta_.col_tot_len];
         auto upper_k = new char[index_meta_.col_tot_len];
-        // 需要根据条件填充lower_k和upper_k
-        // 暂时只考虑 OP:EQ 的情况，l是col，r是val
+        // 根据条件填充lower_k和upper_k
         size_t offset = 0;
-        for (auto &cond : index_conds_) {
-            if (cond.op == OP_EQ) {
+        for (int i=0; i<index_col_names_.size(); ++i) {
+            Value val;
+            if (i<index_conds_.size()) {
+                // 该索引col有条件
+                auto &cond = index_conds_[i];
                 auto col_meta = *tab_.get_col(cond.lhs_col.col_name);
-                memcpy(lower_k + offset, cond.rhs_val.raw->data, col_meta.len);
-                memcpy(upper_k + offset, cond.rhs_val.raw->data, col_meta.len);
+                switch (cond.op) {
+                    case OP_NE:
+                        // lower_k 是最小值
+                        val = Value::makeEdgeValue(col_meta.type, col_meta.len, false);
+                        memcpy(lower_k + offset, val.raw->data, col_meta.len);
+                        // upper_k 是最大值
+                        val = Value::makeEdgeValue(col_meta.type, col_meta.len, true);
+                        memcpy(upper_k + offset, val.raw->data, col_meta.len);
+                        break;
+                    case OP_EQ:
+                        memcpy(lower_k + offset, cond.rhs_val.raw->data, col_meta.len);
+                        memcpy(upper_k + offset, cond.rhs_val.raw->data, col_meta.len);
+                        break;
+                    case OP_LE:
+                    case OP_LT:
+                        // lower_k 是最小值
+                        val = Value::makeEdgeValue(col_meta.type, col_meta.len, false);
+                        memcpy(lower_k + offset, val.raw->data, col_meta.len);
+                        memcpy(upper_k + offset, cond.rhs_val.raw->data, col_meta.len);
+                        break;
+                    case OP_GE:
+                    case OP_GT:                    
+                        // upper_k 是最大值
+                        val = Value::makeEdgeValue(col_meta.type, col_meta.len, true);
+                        memcpy(lower_k + offset, cond.rhs_val.raw->data, col_meta.len);
+                        memcpy(upper_k + offset, val.raw->data, col_meta.len);
+                        break;
+                    default:
+                        assert(false);
+                }
+            } else {
+                // 该索引col没有条件，直接用最小值和最大值
+                auto col_meta = *tab_.get_col(index_col_names_[i]);
+                val = Value::makeEdgeValue(col_meta.type, col_meta.len, false);
+                memcpy(lower_k + offset, val.raw->data, col_meta.len);
+                val = Value::makeEdgeValue(col_meta.type, col_meta.len, true);
+                memcpy(upper_k + offset, val.raw->data, col_meta.len);
             }
-            offset += tab_.get_col(cond.lhs_col.col_name)->len;
+            offset += tab_.get_col(index_col_names_[i])->len;
         }
 
         Iid lower_iid = ih_->lower_bound(lower_k);
@@ -102,7 +146,9 @@ class IndexScanExecutor : public AbstractExecutor {
         scan_ = std::make_unique<IxScan>(ih_, lower_iid, upper_iid, ih_->get_buffer_pool_manager());
 
         // 查看是否有符合的
-        while (!scan_->is_end() && !evalConditions()) {
+        while (!scan_->is_end()) {
+            rid_ = scan_->rid();
+            if (evalConditions()) break;
             scan_->next();
         }
     }
@@ -129,13 +175,15 @@ class IndexScanExecutor : public AbstractExecutor {
     void nextTuple() override {
         if (scan_->is_end()) return;
         scan_->next();
-        while (!scan_->is_end() && !evalConditions()) {
+        while (!scan_->is_end()) {
+            rid_ = scan_->rid();
+            if (evalConditions()) break;
             scan_->next();
         }
     }
 
     std::unique_ptr<RmRecord> Next() override {
-        return fh_->get_record(scan_->rid(), context_);
+        return fh_->get_record(rid_, context_);
     }
 
     [[nodiscard]] bool is_end() const override {

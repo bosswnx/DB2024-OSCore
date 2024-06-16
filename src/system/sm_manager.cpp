@@ -255,7 +255,11 @@ void SmManager::create_index(const std::string& tab_name, const std::vector<std:
             offset += col.len;
         }
 
-        ix_handler->insert_entry(projected_record->data, rm_scan.rid(), txn);
+        try {
+            ix_handler->insert_entry(projected_record->data, rm_scan.rid(), txn);
+        } catch (const IndexKeyDuplicateError &e) {
+            
+        }
     }
     
     // 更新元数据
