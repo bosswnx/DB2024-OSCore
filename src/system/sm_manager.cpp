@@ -292,7 +292,11 @@ void SmManager::drop_index(const std::string& tab_name, const std::vector<std::s
         // 删除page
         for (int i = 0; i < ihs_.at(index_name)->get_page_cnt(); ++i) {
             PageId page_id = {ihs_.at(index_name)->get_fd(), i};
-            buffer_pool_manager_->unpin_page(page_id, true);
+            // 得到page_id对应的page，然后强行让pin_count为0，然后删除page
+            auto page = buffer_pool_manager_->fetch_page(page_id);
+            while (page->get_pin_count() > 0) {
+                buffer_pool_manager_->unpin_page(page_id, true);
+            }
             buffer_pool_manager_->delete_page(page_id);
         }
         // 更新元数据
