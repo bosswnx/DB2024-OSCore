@@ -209,7 +209,11 @@ void SmManager::drop_table(const std::string& tab_name, Context* context) {
     rm_manager_->close_file(it1->second.get());
     rm_manager_->destroy_file(tab_name);
 //    TODO: 删除索引
-    drop_index(tab_name, db_.get_table(tab_name).cols, context);
+    if (db_.get_table(tab_name).indexes.size() > 0) {
+        for (auto &index_meta : db_.get_table(tab_name).indexes) {
+            drop_index(tab_name, index_meta.cols, context);
+        }
+    }
     fhs_.erase(tab_name);
     db_.tabs_.erase(tab_name);
 }
@@ -282,11 +286,7 @@ void SmManager::drop_index(const std::string& tab_name, const std::vector<std::s
 
     bool in_ihs = ihs_.find(index_name) != ihs_.end();
 
-    if (in_ihs){
-        ix_manager_->close_index(ihs_.at(index_name).get());
-    }
 
-    ix_manager_->destroy_index(tab_name, col_names);
 
     if (in_ihs) {
         // 删除page
@@ -296,8 +296,11 @@ void SmManager::drop_index(const std::string& tab_name, const std::vector<std::s
             buffer_pool_manager_->delete_page(page_id);
         }
         // 更新元数据
+        ix_manager_->close_index(ihs_.at(index_name).get());
         ihs_.erase(index_name);
     }
+
+    ix_manager_->destroy_index(tab_name, col_names);
     
     auto &tab_meta = db_.tabs_.at(tab_name);
     tab_meta.indexes.erase(tab_meta.get_index_meta(col_names));
