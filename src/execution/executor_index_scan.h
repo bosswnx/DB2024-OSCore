@@ -156,9 +156,15 @@ class IndexScanExecutor : public AbstractExecutor {
     bool evalConditions() {
         auto handle = fh_->get_record(scan_->rid(), context_);
         char *base = handle->data;
+
         // 逻辑不短路，目前只实现逻辑与
         return std::all_of(conds_.begin(), conds_.end(), [base, this](const Condition& cond) {
             auto value = Value::col2Value(base, get_col_offset(cond.lhs_col));
+
+            // std::cout << "compare: " << cond.lhs_col.col_name << " ";
+            // value.print();
+            // std::cout << std::endl;
+
             return cond.eval_with_rvalue(value);
         });
     }
