@@ -1,0 +1,1 @@
+add_executable(test_unrelated_subquery test_unrelated_subquery.cpp)

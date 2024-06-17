@@ -1,3 +1,4 @@
+MAKEFLAGS += -s  # 去除 make 默认输出
 BUILD_TYPE ?= Debug
 
 .PHONY: build clean help
