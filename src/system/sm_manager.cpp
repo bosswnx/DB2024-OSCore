@@ -262,7 +262,7 @@ void SmManager::create_index(const std::string& tab_name, const std::vector<std:
         try {
             ix_handler->insert_entry(projected_record->data, rm_scan.rid(), txn);
         } catch (const IndexKeyDuplicateError &e) {
-            
+            throw IndexKeyDuplicateError();
         }
     }
     
