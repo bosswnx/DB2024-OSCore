@@ -1,0 +1,5 @@
+file(GLOB PYTEST_FILES ${CMAKE_SOURCE_DIR}/test/test_*.py)
+foreach (PYTEST_FILE ${PYTEST_FILES})
+    get_filename_component(TEST_NAME ${PYTEST_FILE} NAME_WE)
+    add_test(NAME ${TEST_NAME} COMMAND pytest ${PYTEST_FILE} WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+endforeach ()
