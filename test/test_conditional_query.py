@@ -155,7 +155,7 @@ class TestConditionalQuery:
         for i in range(random.randint(80, 200)):
             row = list(cls.generate_random_data(column_types))
             mock.append(row)
-            sql = f"insert into {cls.TABLENAME} values({",".join(row)});\n"
+            sql = f"insert into {cls.TABLENAME} values({','.join(row)});\n"
             print(sql)
             cls.client.stdin.write(sql.encode())
         return column_types, column_names, mock
