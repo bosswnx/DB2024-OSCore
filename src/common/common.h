@@ -110,7 +110,7 @@ struct Value {
         }
     }
 
-    static Value col2Value(char *base, const ColMeta& meta) {
+    static Value col2Value(const char *base, const ColMeta& meta) {
         Value value;
         switch (meta.type) {
             case TYPE_INT:

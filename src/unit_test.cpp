@@ -686,7 +686,7 @@ int compare_int(const void *a, const void *b, void *arg) {
 
 TEST_F(ExternalMergeSortTest, SimpleTest1) {
     // 32M规模的排序，波形为重复的-0x8000到0x8000
-    ExternalMergeSorter sorter(0x4000, 0x400000, 4, compare_int, nullptr);
+    ExternalMergeSorter sorter(1024 * 1024 * 4, 4, compare_int, nullptr);
     for (int i = 0; i < 0x400; ++i) {
         for (int j = 0x8000; j > -0x8000; --j) {
             sorter.write((const char *) &j);
@@ -706,7 +706,7 @@ TEST_F(ExternalMergeSortTest, SimpleTest1) {
 
 TEST_F(ExternalMergeSortTest, SimpleTest2) {
     // 除了分隔的文件不同，其他和SimpleTest1相同
-    ExternalMergeSorter sorter(0x4000, 0x480000, 4,
+    ExternalMergeSorter sorter(1024 * 1024 * 3, 4,
                                compare_int, nullptr);
     for (int i = 0; i < 0x400; ++i) {
         for (int j = 0x8000; j > -0x8000; --j) {
@@ -725,12 +725,12 @@ TEST_F(ExternalMergeSortTest, SimpleTest2) {
     }
 }
 
-TEST_F(ExternalMergeSortTest, SimpleTest3) {
+TEST_F(ExternalMergeSortTest, ReverseOrder) {
     // 64M规模的排序, 倒序
     const int num_records_total = 0x1020000;
     // 0x1020000 /0x100000 = 16.125 个文件
     // 0x100000 / 0x20010 = 7.999023556694739 个页
-    ExternalMergeSorter sorter(0x20010, 0x100000, 4,
+    ExternalMergeSorter sorter(1024 * 1024 * 6, 4,
                                compare_int, nullptr);
     for (int i = num_records_total - 1; i >= 0; --i) {
         sorter.write((const char *) &i);
@@ -747,11 +747,11 @@ TEST_F(ExternalMergeSortTest, SimpleTest3) {
     }
 }
 
-TEST_F(ExternalMergeSortTest, SimpleTest4) {
+TEST_F(ExternalMergeSortTest, RandomInput) {
     // 64M规模的排序，数据完全随机
     const int num_records_total = 0x1020000;
     std::ifstream urandom("/dev/urandom", std::ios::binary);
-    ExternalMergeSorter sorter(0x20010, 0x100000, 4,
+    ExternalMergeSorter sorter(1024 * 1024 * 6, 4,
                                compare_int, nullptr);
     for (int i = 0; i < num_records_total; ++i) {
         int val;
@@ -781,10 +781,10 @@ int wave1(int x) {
     return abs(abs(x % 1024) - 512);
 }
 
-TEST_F(ExternalMergeSortTest, SimpleTest5) {
+TEST_F(ExternalMergeSortTest, SawtoothWave1) {
     // 258M规模的排序，锯齿形
     const int num_records_total = 0x10200300;
-    ExternalMergeSorter sorter(0x20010, 0x100000, 4,
+    ExternalMergeSorter sorter(1024 * 1024 * 32, 4,
                                compare_int, nullptr);
     for (int i = 0; i < num_records_total; ++i) {
         int val = wave1(i);
@@ -804,10 +804,34 @@ TEST_F(ExternalMergeSortTest, SimpleTest5) {
     }
 }
 
-TEST_F(ExternalMergeSortTest, SimpleTest6) {
-    // 波形为倾斜的锯齿形，其他和SimpleTest5相同
+TEST_F(ExternalMergeSortTest, SawtoothWave2) {
+    // 波形为倾斜的锯齿形，其他和SawtoothWave1相同
     const int num_records_total = 0x10200300;
-    ExternalMergeSorter sorter(0x20010, 0x100000, 4,
+    ExternalMergeSorter sorter(1024 * 1024 * 32, 4,
+                               compare_int, nullptr);
+    for (int i = 0; i < num_records_total; ++i) {
+        int val = wave1(i) - i;
+        sorter.write((const char *) &val);
+    }
+    sorter.endWrite();
+    sorter.beginRead();
+    int last_val = INT32_MIN;
+    for (int i = 0; i < num_records_total; ++i) {
+        int val;
+        sorter.read((char *) &val);
+        if (i % 1000 == 0) {
+            std::cout << val << '\n';
+        }
+        ASSERT_LE(last_val, val);
+        last_val = val;
+    }
+}
+
+TEST_F(ExternalMergeSortTest, SortInMemory){
+    // 测试输入数据不必使用外存辅助排序的情况
+    // 除了文件大小不同，其他和SawtoothWave2相同
+    const int num_records_total = 0x10200300;
+    ExternalMergeSorter sorter(1024 * 1024 * 32, 4,
                                compare_int, nullptr);
     for (int i = 0; i < num_records_total; ++i) {
         int val = wave1(i) - i;

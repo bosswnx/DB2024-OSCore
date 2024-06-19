@@ -22,6 +22,7 @@ enum ExecutorType {
     SEQ_SCAN_EXECUTOR,
     UPDATE_EXECUTOR,
     NESTEDLOOP_JOIN_EXECUTOR,
+    MERGE_JOIN_EXECUTOR,
     SORT_EXECUTOR,
     INSERT_EXECUTOR,
     INDEX_SCAN_EXECUTOR,
@@ -56,6 +57,10 @@ class AbstractExecutor {
     };
 
     [[nodiscard]] virtual bool is_end() const {
+        throw InternalError("virtual member function not implemented");
+    };
+
+    [[nodiscard]] virtual std::string tableName() const {
         throw InternalError("virtual member function not implemented");
     };
 

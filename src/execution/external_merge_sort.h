@@ -12,7 +12,6 @@ See the Mulan PSL v2 for more details. */
 
 #include <sys/mman.h>
 #include <vector>
-#include <string>
 #include <fcntl.h>
 #include <unistd.h>
 #include <cstring>
@@ -24,8 +23,7 @@ See the Mulan PSL v2 for more details. */
 
 class ExternalMergeSorter {
 private:
-    const ssize_t NUM_RECORD_PER_PAGE;
-    const ssize_t NUM_RECORD_PER_FILE;
+    const ssize_t TOTAL_MEM;                            // 指示排序算法最多能使用的内存(近似)，此参数影响文件大小和缓冲区大小
     const ssize_t RECORD_SIZE;
     std::vector<std::string> filenames_;                // 大表分隔后存储在多个文件中
     std::vector<std::ifstream> opened_files;            // 保存打开的文件
@@ -36,23 +34,49 @@ private:
     int (*cmp_)(const void *, const void *, void *);    // 比较函数
 
     void *arg_;                                         // 比较函数传入的额外参数，用于比较记录的任意属性，传递给`qsort_r`
+    int total_record = 0;                               // 记录总数，用于判断是否读完
 
 // 以下只在write函数中使用
-    ssize_t index = 0;         // 当前插入记录在文件中的偏移
-    char *data = nullptr;      // 写入时文件映射在此处
-    bool isFull = true;        // 当前使用的文件是否已满
+    ssize_t index = 0;                                  // 当前插入记录在文件中的偏移
+    char *data = nullptr;                               // 写入时文件映射在此处
+    bool isFull = true;                                 // 当前使用的文件是否已满
 public:
-    ExternalMergeSorter(ssize_t num_record_per_page, ssize_t num_record_per_file, ssize_t record_size,
+    ExternalMergeSorter(ssize_t total_mem, ssize_t record_size,
                         int (*cmp)(const void *, const void *, void *), void *arg = nullptr)
-            : NUM_RECORD_PER_PAGE(num_record_per_page), NUM_RECORD_PER_FILE(num_record_per_file),
-              RECORD_SIZE(record_size), cmp_(cmp), arg_(arg) {}
+    // 保证每个文件大小是记录大小的整数倍
+            : TOTAL_MEM(total_mem - total_mem % record_size), RECORD_SIZE(record_size), cmp_(cmp), arg_(arg) {}
+
+    ExternalMergeSorter(ExternalMergeSorter &&sorter) noexcept: TOTAL_MEM(sorter.TOTAL_MEM),
+                                                                RECORD_SIZE(sorter.RECORD_SIZE) {
+        filenames_ = std::move(sorter.filenames_);
+        opened_files = std::move(sorter.opened_files);
+        buffer_list = std::move(sorter.buffer_list);
+        record_list = std::move(sorter.record_list);
+        heap = std::move(sorter.heap);
+        cmp_ = sorter.cmp_;
+        arg_ = sorter.arg_;
+        total_record = sorter.total_record;
+        index = sorter.index;
+        data = sorter.data;
+        isFull = sorter.isFull;
+    }
+
+    /// 上层函数可能不读完所有记录
+    ~ExternalMergeSorter() {
+        for (size_t i = 0; i < opened_files.size(); ++i) {
+            if (opened_files[i].is_open()) {
+                opened_files[i].close();
+                unlink(filenames_[i].c_str());
+            }
+        }
+    }
 
 
     void write(const char *record) {
         if (isFull) {
             if (data != nullptr) {
-                ::qsort_r(data, NUM_RECORD_PER_FILE, RECORD_SIZE, cmp_, arg_);
-                munmap(data, NUM_RECORD_PER_FILE * RECORD_SIZE);
+                ::qsort_r(data, TOTAL_MEM / RECORD_SIZE, RECORD_SIZE, cmp_, arg_);
+                munmap(data, TOTAL_MEM);
             }
             char filename[] = "auxiliary_sort_fileXXXXXX";
             int fd = mkstemp(filename);
@@ -60,8 +84,8 @@ public:
             if (fd == -1) {
                 throw UnixError();
             }
-            ftruncate(fd, NUM_RECORD_PER_FILE * RECORD_SIZE);
-            data = (char *) mmap(nullptr, NUM_RECORD_PER_FILE * RECORD_SIZE, PROT_READ | PROT_WRITE,
+            ftruncate(fd, TOTAL_MEM);
+            data = (char *) mmap(nullptr, TOTAL_MEM, PROT_READ | PROT_WRITE,
                                  MAP_SHARED, fd, 0);
             if (data == (void *) -1) {
                 throw UnixError();
@@ -72,7 +96,8 @@ public:
         }
         memcpy(data + index * RECORD_SIZE, record, RECORD_SIZE);
         index++;
-        if (index == NUM_RECORD_PER_FILE) {
+        total_record++;
+        if (index == TOTAL_MEM / RECORD_SIZE) {
             isFull = true;
         }
     }
@@ -80,7 +105,7 @@ public:
     void endWrite() {
         if (data != nullptr) {
             ::qsort_r(data, index, RECORD_SIZE, cmp_, arg_);
-            munmap(data, NUM_RECORD_PER_FILE * RECORD_SIZE);
+            munmap(data, TOTAL_MEM);
             int fd = open(filenames_.back().c_str(), O_RDWR);
             if (fd == -1) {
                 throw UnixError();
@@ -94,17 +119,19 @@ public:
     }
 
     void beginRead() {
+        ssize_t _buffer_size = TOTAL_MEM / filenames_.size();
+        const ssize_t buffer_size = _buffer_size - _buffer_size % RECORD_SIZE;   // 尽量使用更多的内存
         for (const auto &filename: filenames_) {
             std::ifstream file(filename, std::ios::binary);
             if (file.fail()) {
                 throw UnixError();
             }
-            auto buffer = std::make_unique<char[]>(NUM_RECORD_PER_PAGE * RECORD_SIZE);
-            file.rdbuf()->pubsetbuf(buffer.get(), NUM_RECORD_PER_PAGE * RECORD_SIZE);
-            buffer_list.push_back(std::move(buffer));
+            auto buffer = new char[buffer_size];
+            file.rdbuf()->pubsetbuf(buffer, buffer_size);
+            buffer_list.emplace_back(buffer);
             char *record = new char[RECORD_SIZE];
             file.read(record, RECORD_SIZE);
-            record_list.push_back(std::unique_ptr<char[]>(record));     // 读取每个文件的第一个记录
+            record_list.emplace_back(record);     // 读取每个文件的第一个记录
             opened_files.push_back(std::move(file));
         }
         int height = std::ceil(std::log2(filenames_.size()));
@@ -172,5 +199,10 @@ public:
     void read(char *record) {
         memcpy(record, record_list[heap[0]].get(), RECORD_SIZE);
         adjust();
+        total_record--;
+    }
+
+    [[nodiscard]] bool is_end() const {
+        return total_record == 0;
     }
 };
