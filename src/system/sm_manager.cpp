@@ -249,6 +249,8 @@ void SmManager::create_index(const std::string& tab_name, const std::vector<std:
     auto txn = nullptr ? nullptr : context->txn_;
     RmScan rm_scan(file_handler);
 
+    bool delete_flag = false;
+
     for (; !rm_scan.is_end(); rm_scan.next()) {
         auto record = file_handler->get_record(rm_scan.rid(), context);
 
@@ -262,14 +264,19 @@ void SmManager::create_index(const std::string& tab_name, const std::vector<std:
         try {
             ix_handler->insert_entry(projected_record->data, rm_scan.rid(), txn);
         } catch (const IndexKeyDuplicateError &e) {
-            
+            delete_flag = true;
         }
     }
     
     // 更新元数据
     ihs_.emplace(ix_manager_->get_index_name(tab_name, col_names), std::move(ix_handler));
     db_.get_table(tab_name).indexes.emplace_back(index_meta);
-    flush_meta();    
+    flush_meta();
+
+    if (delete_flag) {
+        drop_index(tab_name, col_names, context);
+        throw IndexKeyDuplicateError();
+    }
 }
 
 /**
@@ -292,7 +299,11 @@ void SmManager::drop_index(const std::string& tab_name, const std::vector<std::s
         // 删除page
         for (int i = 0; i < ihs_.at(index_name)->get_page_cnt(); ++i) {
             PageId page_id = {ihs_.at(index_name)->get_fd(), i};
-            buffer_pool_manager_->unpin_page(page_id, true);
+            // 得到page_id对应的page，然后强行让pin_count为0，然后删除page
+            auto page = buffer_pool_manager_->fetch_page(page_id);
+            while (page->get_pin_count() > 0) {
+                buffer_pool_manager_->unpin_page(page_id, true);
+            }
             buffer_pool_manager_->delete_page(page_id);
         }
         // 更新元数据

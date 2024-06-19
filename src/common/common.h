@@ -221,6 +221,22 @@ struct Value {
     bool operator<=(const Value &rhs) const {
         return !this->operator>(rhs);
     }
+
+    void print() const {
+        switch (type) {
+            case TYPE_INT:
+                std::cout << int_val;
+                break;
+            case TYPE_FLOAT:
+                std::cout << float_val;
+                break;
+            case TYPE_STRING:
+                std::cout << str_val;
+                break;
+            default:
+                throw InternalError("not implemented");
+        }
+    }
 };
 
 //             =       !=    <       >      <=     >=
