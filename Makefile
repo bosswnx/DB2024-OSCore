@@ -1,7 +1,7 @@
 MAKEFLAGS += -s  # 去除 make 默认输出
 BUILD_TYPE ?= Debug
 
-.PHONY: build clean help
+.PHONY: build clean help run
 
 build:
 	@mkdir -p build
@@ -12,6 +12,16 @@ build:
 
 clean:
 	@rm -rf build
+
+debug: build
+	@cd build && rm -rf debug_db && \
+	tmux kill-session -t rmdb_session 2>/dev/null || true && \
+	tmux new-session -d -s rmdb_session && \
+	tmux split-window -h && \
+	tmux send-keys -t rmdb_session:0.1 './bin/rmdb debug_db' C-m && \
+	tmux send-keys -t rmdb_session:0.0 'sleep 1; ./bin/rmdb_client' C-m && \
+	tmux select-pane -t rmdb_session:0.0 && \
+	tmux attach-session -t rmdb_session
 
 help:
 	@echo "Usage: make [target]"
