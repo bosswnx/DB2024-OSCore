@@ -14,10 +14,10 @@ See the Mulan PSL v2 for more details. */
 
 #include "record/rm.h"
 #include "storage/buffer_pool_manager.h"
+#include "execution/external_merge_sort.h"
 
 #undef private
 
-#include <algorithm>
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
@@ -25,7 +25,6 @@ See the Mulan PSL v2 for more details. */
 #include <ctime>
 #include <iostream>
 #include <memory>
-#include <random>
 #include <set>
 #include <string>
 #include <thread>  // NOLINT
@@ -663,4 +662,167 @@ TEST(RecordManagerTest, SimpleTest) {
     // clean up
     rm_manager->close_file(file_handle.get());
     rm_manager->destroy_file(filename);
+}
+
+class ExternalMergeSortTest : public ::testing::Test {
+public:
+    void SetUp() override {
+        // 删除上次测试残留的文件
+        system("find . -name 'aux*' -exec rm {} \\;");
+    }
+};
+
+int compare_int(const void *a, const void *b, void *arg) {
+    int x = *(int *) a;
+    int y = *(int *) b;
+    if (x > y) {
+        return 1;
+    } else if (x < y) {
+        return -1;
+    } else {
+        return 0;
+    }
+}
+
+TEST_F(ExternalMergeSortTest, SimpleTest1) {
+    // 32M规模的排序，波形为重复的-0x8000到0x8000
+    ExternalMergeSorter sorter(0x4000, 0x400000, 4, compare_int, nullptr);
+    for (int i = 0; i < 0x400; ++i) {
+        for (int j = 0x8000; j > -0x8000; --j) {
+            sorter.write((const char *) &j);
+        }
+    }
+    sorter.endWrite();
+    sorter.beginRead();
+    for (int i = -0x8000 + 1; i <= 0x8000; ++i) {
+        for (int j = 0; j < 0x400; ++j) {
+            int val;
+            sorter.read((char *) &val);
+            ASSERT_EQ(val, i);
+        }
+        std::cout << i << '\n';
+    }
+}
+
+TEST_F(ExternalMergeSortTest, SimpleTest2) {
+    // 除了分隔的文件不同，其他和SimpleTest1相同
+    ExternalMergeSorter sorter(0x4000, 0x480000, 4,
+                               compare_int, nullptr);
+    for (int i = 0; i < 0x400; ++i) {
+        for (int j = 0x8000; j > -0x8000; --j) {
+            sorter.write((const char *) &j);
+        }
+    }
+    sorter.endWrite();
+    sorter.beginRead();
+    for (int i = -0x8000 + 1; i <= 0x8000; ++i) {
+        for (int j = 0; j < 0x400; ++j) {
+            int val;
+            sorter.read((char *) &val);
+            ASSERT_EQ(val, i);
+        }
+        std::cout << i << '\n';
+    }
+}
+
+TEST_F(ExternalMergeSortTest, SimpleTest3) {
+    // 64M规模的排序, 倒序
+    const int num_records_total = 0x1020000;
+    // 0x1020000 /0x100000 = 16.125 个文件
+    // 0x100000 / 0x20010 = 7.999023556694739 个页
+    ExternalMergeSorter sorter(0x20010, 0x100000, 4,
+                               compare_int, nullptr);
+    for (int i = num_records_total - 1; i >= 0; --i) {
+        sorter.write((const char *) &i);
+    }
+    sorter.endWrite();
+    sorter.beginRead();
+    for (int i = 0; i < num_records_total; ++i) {
+        int val;
+        sorter.read((char *) &val);
+        if (i % 1000 == 0) {
+            std::cout << val << '\n';
+        }
+        ASSERT_EQ(i, val);
+    }
+}
+
+TEST_F(ExternalMergeSortTest, SimpleTest4) {
+    // 64M规模的排序，数据完全随机
+    const int num_records_total = 0x1020000;
+    std::ifstream urandom("/dev/urandom", std::ios::binary);
+    ExternalMergeSorter sorter(0x20010, 0x100000, 4,
+                               compare_int, nullptr);
+    for (int i = 0; i < num_records_total; ++i) {
+        int val;
+        urandom.read((char *) &val, 4);
+        sorter.write((const char *) &val);
+    }
+    urandom.close();
+    sorter.endWrite();
+    sorter.beginRead();
+    int last_val = INT32_MIN;
+    for (int i = 0; i < num_records_total; ++i) {
+        int val;
+        sorter.read((char *) &val);
+        if (last_val > val) {
+            std::cout << last_val << ' ' << val << '\n';
+        }
+        if (i % 1000 == 0) {
+            std::cout << val << '\n';
+        }
+        // 不检查数据是否相等，只检查是否有序
+        ASSERT_LE(last_val, val);
+        last_val = val;
+    }
+}
+
+int wave1(int x) {
+    return abs(abs(x % 1024) - 512);
+}
+
+TEST_F(ExternalMergeSortTest, SimpleTest5) {
+    // 258M规模的排序，锯齿形
+    const int num_records_total = 0x10200300;
+    ExternalMergeSorter sorter(0x20010, 0x100000, 4,
+                               compare_int, nullptr);
+    for (int i = 0; i < num_records_total; ++i) {
+        int val = wave1(i);
+        sorter.write((const char *) &val);
+    }
+    sorter.endWrite();
+    sorter.beginRead();
+    int last_val = INT32_MIN;
+    for (int i = 0; i < num_records_total; ++i) {
+        int val;
+        sorter.read((char *) &val);
+        if (i % 1000 == 0) {
+            std::cout << val << '\n';
+        }
+        ASSERT_LE(last_val, val);
+        last_val = val;
+    }
+}
+
+TEST_F(ExternalMergeSortTest, SimpleTest6) {
+    // 波形为倾斜的锯齿形，其他和SimpleTest5相同
+    const int num_records_total = 0x10200300;
+    ExternalMergeSorter sorter(0x20010, 0x100000, 4,
+                               compare_int, nullptr);
+    for (int i = 0; i < num_records_total; ++i) {
+        int val = wave1(i) - i;
+        sorter.write((const char *) &val);
+    }
+    sorter.endWrite();
+    sorter.beginRead();
+    int last_val = INT32_MIN;
+    for (int i = 0; i < num_records_total; ++i) {
+        int val;
+        sorter.read((char *) &val);
+        if (i % 1000 == 0) {
+            std::cout << val << '\n';
+        }
+        ASSERT_LE(last_val, val);
+        last_val = val;
+    }
 }
