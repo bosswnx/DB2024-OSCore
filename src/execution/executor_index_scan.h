@@ -120,7 +120,7 @@ class IndexScanExecutor : public AbstractExecutor {
                         memcpy(upper_k + offset, cond.rhs_val.raw->data, col_meta.len);
                         break;
                     case OP_GE:
-                    case OP_GT:                    
+                    case OP_GT:
                         // upper_k 是最大值
                         val = Value::makeEdgeValue(col_meta.type, col_meta.len, true);
                         memcpy(lower_k + offset, cond.rhs_val.raw->data, col_meta.len);
