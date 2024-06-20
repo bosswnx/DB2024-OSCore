@@ -36,6 +36,9 @@ private:
     std::unique_ptr<RmRecord> buffer_;         // 输出使用的缓冲区
     std::function<int(const void *left, const void *right)> cmp_;      // 比较函数
     bool is_end_ = false;
+
+    std::ofstream sort_outputL;                  // 评测时输出的sorted_results.txt
+    std::ofstream sort_outputR;                 // 左表输出到sort_outputL， 右表输出到sort_outputR，然后合并
 public:
     MergeJoinExecutor(std::unique_ptr<AbstractExecutor> left, std::unique_ptr<AbstractExecutor> right,
                       std::vector<Condition> conds) : left_(std::move(left)), right_(std::move(right)),
@@ -99,29 +102,95 @@ public:
         return sorter;
     }
 
+    static void testPrintTableHeader(const std::vector<ColMeta> &cols, std::ofstream &output) {
+        std::vector<std::string> captions;
+        captions.reserve(cols.size());
+        for (auto &col: cols) {
+            if (!col.alias.empty()) {
+                captions.push_back(col.alias);
+            } else {
+                captions.push_back(col.name);
+            }
+        }
+        output << "|";
+        for (const auto &caption: captions) {
+            output << " " << caption << " |";
+        }
+        output << "\n";
+    }
+
+    static void testPrintRecord(const std::vector<ColMeta> &cols, std::ofstream &output, const char *record) {
+        std::vector<std::string> columns;
+        for (auto &col: cols) {
+            std::string col_str;
+            const char *rec_buf = record + col.offset;
+            if (col.type == TYPE_INT) {
+                col_str = std::to_string(*(int *) rec_buf);
+            } else if (col.type == TYPE_FLOAT) {
+                col_str = std::to_string(*(float *) rec_buf);
+            } else if (col.type == TYPE_STRING) {
+                col_str = std::string((char *) rec_buf, col.len);
+                col_str.resize(strlen(col_str.c_str()));
+            } else if (col.type == TYPE_NULL) {
+                col_str = "NULL";
+            }
+            columns.push_back(col_str);
+        }
+        output << "|";
+        for (const auto &column: columns) {
+            output << " " << column << " |";
+        }
+        output << "\n";
+    }
+
+    void testPrintMergeFile() {
+        char c;
+        sort_outputR.close();
+        std::ifstream file("sorted_results1.txt", std::ios::binary | std::ios::in);
+        while (file.get(c)) {
+            sort_outputL << c;
+        }
+        sort_outputL.close();
+        file.close();
+        unlink("sorted_results1.txt");
+    }
+
+
     void beginTuple() override {
+        sort_outputL.open("sorted_results.txt");
+        sort_outputR.open("sorted_results1.txt");
+        if (sort_outputR.fail() || sort_outputL.fail()) {
+            throw UnixError();
+        }
+        testPrintTableHeader(left_->cols(), sort_outputL);
+        testPrintTableHeader(right_->cols(), sort_outputR);
         sorters_.push_back(sortBigData(left_, left_col_));
         sorters_.push_back(sortBigData(right_, right_col_));
         nextTuple();
     };
 
     void nextTuple() override {
-        if(sorters_[0].is_end() || sorters_[1].is_end()){
+        if (sorters_[0].is_end() || sorters_[1].is_end()) {
             is_end_ = true;
+            testPrintMergeFile();
             return;
         }
         sorters_[0].read(records_[0].get());
         sorters_[1].read(records_[1].get());
+        testPrintRecord(left_->cols(), sort_outputL, records_[0].get());
+        testPrintRecord(right_->cols(), sort_outputR, records_[1].get());
         int result = cmp_(records_[0].get(), records_[1].get());
         while (result != 0 && !(sorters_[0].is_end() || sorters_[1].is_end())) {
             if (result < 0) {
                 sorters_[0].read(records_[0].get());
+                testPrintRecord(left_->cols(), sort_outputL, records_[0].get());
             } else {
                 sorters_[1].read(records_[1].get());
+                testPrintRecord(right_->cols(), sort_outputR, records_[1].get());
             }
             result = cmp_(records_[0].get(), records_[1].get());
         }
-        if(result != 0){
+        if (result != 0) {
             is_end_ = true;
             return;
         }
