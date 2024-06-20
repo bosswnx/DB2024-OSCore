@@ -172,15 +172,26 @@ struct SetClause : public TreeNode {
             col_name(std::move(col_name_)), val(std::move(val_)) {}
 };
 
+struct SelectStmt;
+
 struct BinaryExpr : public TreeNode {
     std::shared_ptr<Col> lhs;
     SvCompOp op;
     std::shared_ptr<Expr> rhs;
+    std::shared_ptr<SelectStmt> subquery;
 
+    // expr
     BinaryExpr(std::shared_ptr<Col> lhs_, SvCompOp op_, std::shared_ptr<Expr> rhs_) :
             lhs(std::move(lhs_)), op(op_), rhs(std::move(rhs_)) {}
-};
 
+    // subquery
+    BinaryExpr(std::shared_ptr<Col> lhs_, SvCompOp op_, std::shared_ptr<SelectStmt> subquery_) :
+            lhs(std::move(lhs_)), op(op_), subquery(std::move(subquery_)) {}
+    
+    bool is_subquery() {
+        return subquery != nullptr;
+    }
+};
 struct OrderBy : public TreeNode
 {
     std::shared_ptr<Col> cols;
@@ -256,7 +267,16 @@ struct SelectStmt : public TreeNode {
                std::shared_ptr<OrderBy> order_,
                std::shared_ptr<GroupBy> group_) :
             cols(std::move(cols_)), tabs(std::move(tabs_)), conds(std::move(conds_)), 
-            group(std::move(group_)), order(std::move(order_)) {has_sort = (bool)order;}
+            order(std::move(order_)), group(std::move(group_)) {has_sort = (bool)order;}
+    
+    bool have_subquery() {
+        for (auto &cond : conds) {
+            if (cond->is_subquery()) {
+                return true;
+            }
+        }
+        return false;
+    }
 };
 
 // set enable_nestloop
@@ -280,6 +300,8 @@ struct SemValue {
     std::vector<std::string> sv_strs;
 
     std::shared_ptr<TreeNode> sv_node;
+
+    std::shared_ptr<SelectStmt> sv_select_stmt;
 
     SvCompOp sv_comp_op;
 

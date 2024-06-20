@@ -9,6 +9,7 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 #include "analyze.h"
+#include "parser/ast.h"
 
 /**
  * @description: 分析器，进行语义分析和查询重写，需要检查不符合语义规定的部分
@@ -229,10 +230,13 @@ void Analyze::get_clause(const std::vector<std::shared_ptr<ast::BinaryExpr>> &sv
             .aggr = expr->lhs->aggr_type
         };
         cond.op = convert_sv_comp_op(expr->op);
-        if (auto rhs_val = std::dynamic_pointer_cast<ast::Value>(expr->rhs)) {
+        if (expr->is_subquery()) {  // 子查询
+            throw InternalError("Subquery not supported yet");
+        }
+        if (auto rhs_val = std::dynamic_pointer_cast<ast::Value>(expr->rhs)) {  // 右边是值
             cond.is_rhs_val = true;
             cond.rhs_val = convert_sv_value(rhs_val);
-        } else if (auto rhs_col = std::dynamic_pointer_cast<ast::Col>(expr->rhs)) {
+        } else if (auto rhs_col = std::dynamic_pointer_cast<ast::Col>(expr->rhs)) {  // 右边是字段
             cond.is_rhs_val = false;
             cond.rhs_col = {
                 .tab_name = rhs_col->tab_name,
