@@ -22,7 +22,7 @@ See the Mulan PSL v2 for more details. */
 class MergeJoinExecutor : public AbstractExecutor {
 
 private:
-    static const ssize_t MERGE_MEMORY_USAGE = 1024 * 1024 * 80;    // 原800MB，评测时改为80MB
+    static const ssize_t MERGE_MEMORY_USAGE = 1024 * 1024 * 10;    // 原800MB，评测时改为10MB
     std::unique_ptr<AbstractExecutor> left_;    // 左儿子节点（需要join的表）
     std::unique_ptr<AbstractExecutor> right_;   // 右儿子节点（需要join的表）
     size_t len_;                                // join后获得的每条记录的长度
