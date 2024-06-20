@@ -204,6 +204,12 @@ std::shared_ptr<Plan> Planner::make_one_rel(std::shared_ptr<Query> query)
             std::shared_ptr<Plan> left , right;
             left = pop_scan(scantbl, it->lhs_col.tab_name, joined_tables, table_scan_executors);
             right = pop_scan(scantbl, it->rhs_col.tab_name, joined_tables, table_scan_executors);
+            if (left == table_scan_executors[1] && right == table_scan_executors[0]){
+                // 使join时的左右表顺序和select from的表名一致，暂时不考虑2-n层join的情况
+                // eg:  select * from item, stock where s_i_id = i_id order by i_id;
+                std::swap(left, right);
+                std::swap(it->lhs_col, it->rhs_col);
+            }
             std::vector<Condition> join_conds{*it};
             //建立join
             // 判断使用哪种join方式
