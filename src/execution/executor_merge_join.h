@@ -32,17 +32,18 @@ private:
     ColMeta left_col_;                          // join条件中左表的字段
     ColMeta right_col_;                         // join条件中右表的字段
     std::vector<ExternalMergeSorter> sorters_;   // 排序完成后从sorter中读取数据
-    std::vector<std::unique_ptr<char[]>> records_;   // 保存从左表和右表读取的记录
+    std::vector<std::unique_ptr<RmRecord>> records_;   // 保存从左表和右表读取的记录
     std::unique_ptr<RmRecord> buffer_;         // 输出使用的缓冲区
     std::function<int(const void *left, const void *right)> cmp_;      // 比较函数
     bool is_end_ = false;
+    const bool USE_INDEX;
 
     std::ofstream sort_outputL;                  // 评测时输出的sorted_results.txt
     std::ofstream sort_outputR;                 // 左表输出到sort_outputL， 右表输出到sort_outputR，然后合并
 public:
     MergeJoinExecutor(std::unique_ptr<AbstractExecutor> left, std::unique_ptr<AbstractExecutor> right,
-                      std::vector<Condition> conds) : left_(std::move(left)), right_(std::move(right)),
-                                                      fed_conds_(std::move(conds)) {
+                      std::vector<Condition> conds, bool use_index = false) : left_(std::move(left)),
+                      right_(std::move(right)),fed_conds_(std::move(conds)),USE_INDEX(use_index) {
         for (const auto &cond: fed_conds_) {
             // 找到要连接的列，暂时不考虑多列连接的情况
             if (cond.is_rhs_val || cond.op != OP_EQ) {
@@ -63,8 +64,8 @@ public:
             col.offset += left_->tupleLen();
         }
         cols_.insert(cols_.end(), right_cols.begin(), right_cols.end());
-        records_.emplace_back(new char[left_->tupleLen()]);
-        records_.emplace_back(new char[right_->tupleLen()]);
+        records_.emplace_back(std::make_unique<RmRecord>(left_->tupleLen()));
+        records_.emplace_back(std::make_unique<RmRecord>(right_->tupleLen()));
 
         cmp_ = [this](const void *left, const void *right) {
             auto lvalue = Value::col2Value((const char *) left, left_col_);
@@ -155,6 +156,16 @@ public:
         unlink("sorted_results1.txt");
     }
 
+    void readRecord(int lOrR) {
+        if (USE_INDEX) {
+            auto executor = lOrR == 0 ? left_.get() : right_.get();
+            records_[lOrR] = executor->Next();
+            executor->nextTuple();
+        } else {
+            sorters_[lOrR].read(records_[lOrR]->data);
+        }
+    }
+
 
     void beginTuple() override {
         sort_outputL.open("sorted_results.txt");
@@ -164,31 +175,43 @@ public:
         }
         testPrintTableHeader(left_->cols(), sort_outputL);
         testPrintTableHeader(right_->cols(), sort_outputR);
-        sorters_.push_back(sortBigData(left_, left_col_));
-        sorters_.push_back(sortBigData(right_, right_col_));
+        if (USE_INDEX) {
+            left_->beginTuple();
+            right_->beginTuple();
+        } else {
+            sorters_.push_back(sortBigData(left_, left_col_));
+            sorters_.push_back(sortBigData(right_, right_col_));
+        }
         nextTuple();
     };
 
     void nextTuple() override {
-        if (sorters_[0].is_end() || sorters_[1].is_end()) {
+        bool end_when_use_index = USE_INDEX && (left_->is_end() || right_->is_end());
+        bool end_when_not_use_index = !USE_INDEX && (sorters_[0].is_end() || sorters_[1].is_end());
+        if (end_when_use_index || end_when_not_use_index) {
             is_end_ = true;
             testPrintMergeFile();
             return;
         }
-        sorters_[0].read(records_[0].get());
-        sorters_[1].read(records_[1].get());
-        testPrintRecord(left_->cols(), sort_outputL, records_[0].get());
-        testPrintRecord(right_->cols(), sort_outputR, records_[1].get());
-        int result = cmp_(records_[0].get(), records_[1].get());
-        while (result != 0 && !(sorters_[0].is_end() || sorters_[1].is_end())) {
+        readRecord(0);
+        readRecord(1);
+        end_when_use_index = USE_INDEX && (left_->is_end() || right_->is_end());
+        end_when_not_use_index = !USE_INDEX && (sorters_[0].is_end() || sorters_[1].is_end());
+
+        testPrintRecord(left_->cols(), sort_outputL, records_[0]->data);
+        testPrintRecord(right_->cols(), sort_outputR, records_[1]->data);
+        int result = cmp_(records_[0]->data, records_[1]->data);
+        while (result != 0 && !(end_when_use_index || end_when_not_use_index)) {
             if (result < 0) {
-                sorters_[0].read(records_[0].get());
-                testPrintRecord(left_->cols(), sort_outputL, records_[0].get());
+                readRecord(0);
+                testPrintRecord(left_->cols(), sort_outputL, records_[0]->data);
             } else {
-                sorters_[1].read(records_[1].get());
-                testPrintRecord(right_->cols(), sort_outputR, records_[1].get());
+                readRecord(1);
+                testPrintRecord(right_->cols(), sort_outputR, records_[1]->data);
             }
-            result = cmp_(records_[0].get(), records_[1].get());
+            result = cmp_(records_[0]->data, records_[1]->data);
+            end_when_use_index = USE_INDEX && (left_->is_end() || right_->is_end());
+            end_when_not_use_index = !USE_INDEX && (sorters_[0].is_end() || sorters_[1].is_end());
         }
         if (result != 0) {
             is_end_ = true;
@@ -196,8 +219,8 @@ public:
         }
         assert(buffer_ == nullptr);      // 记录已经被`Next`取走
         buffer_ = std::make_unique<RmRecord>(len_);
-        memcpy(buffer_->data, records_[0].get(), left_->tupleLen());
-        memcpy(buffer_->data + left_->tupleLen(), records_[1].get(), right_->tupleLen());
+        memcpy(buffer_->data, records_[0]->data, left_->tupleLen());
+        memcpy(buffer_->data + left_->tupleLen(), records_[1]->data, right_->tupleLen());
     };
 
     [[nodiscard]]  bool is_end() const override {

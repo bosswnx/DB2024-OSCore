@@ -72,7 +72,7 @@ class AbstractExecutor {
         throw InternalError("virtual member function not implemented");
     }
 
-    std::vector<ColMeta>::const_iterator get_col(const std::vector<ColMeta> &rec_cols, const TabCol &target, bool aggr = false) {
+    static std::vector<ColMeta>::const_iterator get_col(const std::vector<ColMeta> &rec_cols, const TabCol &target, bool aggr = false) {
         /*
         aggr: 是否需要考虑聚合函数。如果需要考虑聚合函数，则需要同时匹配聚合函数类型
         */

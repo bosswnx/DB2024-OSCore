@@ -179,6 +179,10 @@ class Portal
                 join = std::make_unique<MergeJoinExecutor>(
                         std::move(left),
                         std::move(right), std::move(x->conds_));
+            }else if(x->tag == T_SortMergeWithIndex){
+                join = std::make_unique<MergeJoinExecutor>(
+                        std::move(left),
+                        std::move(right), std::move(x->conds_), true);
             }
             return join;
         } else if(auto x = std::dynamic_pointer_cast<SortPlan>(plan)) {

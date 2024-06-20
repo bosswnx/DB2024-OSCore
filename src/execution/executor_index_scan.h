@@ -203,4 +203,12 @@ class IndexScanExecutor : public AbstractExecutor {
     Rid &rid() override { return rid_; }
 
     ExecutorType getType() override { return ExecutorType::INDEX_SCAN_EXECUTOR; }
+
+    [[nodiscard]] std::string tableName() const override {
+        return tab_name_;
+    };
+
+    [[nodiscard]] size_t tupleLen() const override {
+        return len_;
+    };
 };
