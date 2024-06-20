@@ -145,6 +145,23 @@ public:
     }
 
     void testPrintMergeFile() {
+        // 先将没有使用完的子表输出，为了通过测试
+        while (USE_INDEX && !left_->is_end()) {
+            readRecord(0);
+            testPrintRecord(left_->cols(), sort_outputL, records_[0]->data);
+        }
+        while (USE_INDEX && !right_->is_end()){
+            readRecord(1);
+            testPrintRecord(right_->cols(), sort_outputR, records_[1]->data);
+        }
+        while(!USE_INDEX && !sorters_[0].is_end()){
+            sorters_[0].read(records_[0]->data);
+            testPrintRecord(left_->cols(), sort_outputL, records_[0]->data);
+        }
+        while(!USE_INDEX && !sorters_[1].is_end()){
+            sorters_[1].read(records_[1]->data);
+            testPrintRecord(right_->cols(), sort_outputR, records_[1]->data);
+        }
         char c;
         sort_outputR.close();
         std::ifstream file("sorted_results1.txt", std::ios::binary | std::ios::in);
