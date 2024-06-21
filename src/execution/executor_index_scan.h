@@ -200,6 +200,12 @@ class IndexScanExecutor : public AbstractExecutor {
         return cols_;
     };
 
+
+    [[nodiscard]] size_t tupleLen() const override{
+        return len_;
+    }
+
+
     Rid &rid() override { return rid_; }
 
     ExecutorType getType() override { return ExecutorType::INDEX_SCAN_EXECUTOR; }
