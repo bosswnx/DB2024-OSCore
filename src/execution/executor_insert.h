@@ -51,10 +51,9 @@ class InsertExecutor : public AbstractExecutor {
             val.init_raw(col.len);
             memcpy(rec.data + col.offset, val.raw->data, col.len);
         }
-        // Insert into record file
-        rid_ = fh_->insert_record(rec.data, context_);
         
         // Insert into index
+        std::vector<std::unique_ptr<RmRecord>> recs;
         for(auto & index : tab_.indexes) {
             auto ih = sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name_, index.cols)).get();
             char* key = new char[index.col_tot_len];
@@ -63,8 +62,27 @@ class InsertExecutor : public AbstractExecutor {
                 memcpy(key + offset, rec.data + index.cols[i].offset, index.cols[i].len);
                 offset += index.cols[i].len;
             }
-            ih->insert_entry(key, rid_, context_->txn_);
+
+            // check duplicate
+            std::vector<Rid> _ret;
+            if (ih->get_value(key, &_ret, context_->txn_)) {
+                throw IndexKeyDuplicateError();
+            }
+
+            // ih->insert_entry(key, rid_, context_->txn_);
+            recs.emplace_back(std::make_unique<RmRecord>(index.col_tot_len, key));
         }
+
+        // Insert into record file
+        rid_ = fh_->insert_record(rec.data, context_);
+
+        for (int i = 0; i < recs.size(); ++i) {
+            auto &rec = recs[i];
+            auto &index = tab_.indexes[i];
+            auto ih = sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name_, index.cols)).get();
+            ih->insert_entry(rec->data, rid_, context_->txn_);
+        }
+
         return nullptr;
     }
     Rid &rid() override { return rid_; }
