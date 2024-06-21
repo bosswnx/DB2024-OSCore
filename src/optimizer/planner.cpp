@@ -28,7 +28,7 @@ bool Planner::get_index_cols(std::string tab_name, std::vector<Condition> curr_c
     bool has_index = false;
     for (auto& index: tab.indexes) {
         for (auto& cond: curr_conds) {
-            if(cond.is_rhs_val && cond.lhs_col.tab_name.compare(tab_name) == 0 && cond.lhs_col.col_name.compare(index.cols[0].name) == 0) {
+            if(/* cond.is_rhs_val && */cond.lhs_col.tab_name.compare(tab_name) == 0 && cond.lhs_col.col_name.compare(index.cols[0].name) == 0) {
                 has_index = true;
                 break; // 暂时先只考虑第一个符合条件的索引
             }
