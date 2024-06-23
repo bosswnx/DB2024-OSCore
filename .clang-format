@@ -1,0 +1,5 @@
+BasedOnStyle: LLVM  # 使用LLVM风格
+IndentWidth: 4      # 缩进四空格
+Language: Cpp
+InsertBraces: true  # 自动插入括号
+ColumnLimit: 120    # 每行最多120字符

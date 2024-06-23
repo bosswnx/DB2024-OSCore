@@ -1,8 +1,8 @@
 BUILD_TYPE ?= Debug
 
-.PHONY: build clean help
+.PHONY: build clean help format format-all
 
-build:
+build: format
 	@mkdir -p build
 	@cd build && \
 		cmake .. -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && \
@@ -11,6 +11,14 @@ build:
 
 clean:
 	@rm -rf build
+
+format-all:		# 格式化所有文件，速度较慢
+	git ls-files | grep -E '.*\.(cpp|h)' | xargs clang-format -i
+
+# run clang-format on all lines that differ between the working directory and <commit>, which defaults to HEAD
+# 只格式化修改过的行
+format:
+	git clang-format
 
 help:
 	@echo "Usage: make [target]"
