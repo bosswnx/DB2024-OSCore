@@ -66,18 +66,14 @@ class IndexScanExecutor : public AbstractExecutor {
                 cond.op = swap_op.at(cond.op);
             }
         }
-        fed_conds_ = conds_;
+        fed_conds_ = conds_; // 非等值的索引条件在前面
 
-        // for (auto &cond : conds_) {
-        //     if (cond.lhs_col.tab_name == tab_name_ && index_meta_.has_col(cond.lhs_col.col_name)) {
-        //         index_conds_.push_back(cond);
-        //     }
-        // }
         for (auto &col_name : index_col_names_) {
             for (auto &cond : conds_) {
                 if (cond.lhs_col.col_name == col_name) {
                     index_conds_.push_back(cond);
                 }
+                if (cond.op != OP_EQ) break; // 1. conds_已经按照索引顺序排好序 2. 遇到非等值条件就break
             }
         }
     }
@@ -96,6 +92,7 @@ class IndexScanExecutor : public AbstractExecutor {
         for (int i=0; i<index_col_names_.size(); ++i) {
             Value val;
             if (i<index_conds_.size()) {
+
                 // 该索引col有条件
                 auto &cond = index_conds_[i];
                 auto col_meta = *tab_.get_col(cond.lhs_col.col_name);
@@ -199,7 +196,6 @@ class IndexScanExecutor : public AbstractExecutor {
     [[nodiscard]] const std::vector<ColMeta> &cols() const override {
         return cols_;
     };
-
     Rid &rid() override { return rid_; }
 
     ExecutorType getType() override { return ExecutorType::INDEX_SCAN_EXECUTOR; }

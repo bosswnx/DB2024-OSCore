@@ -290,7 +290,7 @@ void Analyze::check_where_clause(const std::vector<std::string> &tab_names, std:
                     cond.rhs_val.init_raw(sizeof(float));
                     break;
                 case TYPE_STRING:
-                    cond.rhs_val.init_raw(cond.rhs_val.str_val.size());
+                    cond.rhs_val.init_raw(lhs_col->len > cond.rhs_val.str_val.size() ? lhs_col->len : cond.rhs_val.str_val.size()); // 多的补0
                     break;
                 default:
                     break;

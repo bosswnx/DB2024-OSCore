@@ -11,6 +11,7 @@ See the Mulan PSL v2 for more details. */
 #include "planner.h"
 
 #include <memory>
+#include <unordered_map>
 
 #include "execution/executor_delete.h"
 #include "execution/executor_index_scan.h"
@@ -22,34 +23,115 @@ See the Mulan PSL v2 for more details. */
 #include "index/ix.h"
 #include "record_printer.h"
 
-bool Planner::get_index_cols(std::string tab_name, std::vector<Condition> curr_conds, std::vector<std::string>& index_col_names) {
+bool Planner::get_index_cols(std::string tab_name, std::vector<Condition> &curr_conds, std::vector<std::string>& index_col_names) {
     index_col_names.clear();
     TabMeta& tab = sm_manager_->db_.get_table(tab_name);
     bool has_index = false;
-    for (auto& index: tab.indexes) {
-        for (auto& cond: curr_conds) {
-            // merge join时也可以使用索引
-            if((cond.lhs_col.tab_name == tab_name && cond.lhs_col.col_name == index.cols[0].name) ||
-            (cond.rhs_col.tab_name == tab_name && cond.rhs_col.col_name == index.cols[0].name) ) {
-                has_index = true;
-                break; // 暂时先只考虑第一个符合条件的索引
-            }
-        }
-        if (has_index) {
-            // 根据 index.cols 自动调整 index_col_names 的顺序
-            for (auto& col: index.cols) {
-                // for (auto& cond: curr_conds) {
-                //     if (cond.is_rhs_val && cond.lhs_col.tab_name.compare(tab_name) == 0 && cond.lhs_col.col_name.compare(col.name) == 0) {
-                //         index_col_names.push_back(col.name);
-                //         break;
-                //     }
-                // }
-                index_col_names.push_back(col.name);
-            }
-            return true;
+
+    // index example: id, name, value
+    // cond example: id=0, name>'a', value>0
+    // cond example: id=0, name='a', value>0
+    // cond example: name='a', id=0, value>0
+    // 最左匹配
+    std::vector<int> left_match_index;
+    std::unordered_set<int> left_match_index_set;
+    // 等值map，col_name -> index
+    std::unordered_map<std::string, int> eq_index_map;
+    // 非等值map，col_name -> index
+    std::unordered_map<std::string, int> neq_index_map;
+
+    // 从 curr_conds 中 解析出 等值条件 和 非等值条件
+    for (size_t i = 0; i < curr_conds.size(); i++) {
+        if (curr_conds[i].op == OP_EQ) {
+            eq_index_map[curr_conds[i].lhs_col.col_name] = i;
+        } else {
+            neq_index_map[curr_conds[i].lhs_col.col_name] = i;
         }
     }
-    return false;
+
+    // 计算最大左匹配的索引列
+    int max_left_match_index = -1;
+    int max_left_match_len = 0;
+    for (size_t i = 0; i < tab.indexes.size(); i++) {
+        int len = 0;
+        for (size_t j = 0; j < tab.indexes[i].cols.size(); j++) {
+            if (eq_index_map.find(tab.indexes[i].cols[j].name) != eq_index_map.end()) {
+                ++len;
+            } else if (neq_index_map.find(tab.indexes[i].cols[j].name) != neq_index_map.end()) {
+                ++len;
+                break; // 非等值条件，不再继续匹配
+            } else {
+                break; // 不匹配
+            }
+        }
+        if (len > max_left_match_len) {
+            max_left_match_len = len;
+            max_left_match_index = i;
+        }
+    }
+
+    if (max_left_match_index == -1) return false;
+
+    // push into index_col_names
+    for (size_t j = 0; j < tab.indexes[max_left_match_index].cols.size(); j++) {
+        index_col_names.push_back(tab.indexes[max_left_match_index].cols[j].name);
+    }
+
+    // 得到匹配到的索引列在条件中的位置
+    for (int i=0; i<max_left_match_len; ++i) {
+        auto col_name = tab.indexes[max_left_match_index].cols[i].name;
+        if (eq_index_map.find(col_name) != eq_index_map.end()) {
+            left_match_index.push_back(eq_index_map[col_name]);
+            left_match_index_set.insert(eq_index_map[col_name]);
+        } else if (neq_index_map.find(col_name) != neq_index_map.end()) {
+            left_match_index.push_back(neq_index_map[col_name]);
+            left_match_index_set.insert(neq_index_map[col_name]);
+        }
+    }
+
+    std::vector<Condition> new_conds;
+
+    // 调整条件顺序
+
+    // 添加匹配到的条件
+    for (size_t i = 0; i < left_match_index.size(); i++) {
+        new_conds.push_back(std::move(curr_conds[left_match_index[i]]));
+    }
+
+    // 添加未匹配到的条件
+    for (size_t i = 0; i < curr_conds.size(); i++) {
+        if (left_match_index_set.find(i) == left_match_index_set.end()) {
+            new_conds.push_back(std::move(curr_conds[i]));
+        }
+    }
+
+    curr_conds = std::move(new_conds);
+
+    return true;
+
+
+    // for (auto& index: tab.indexes) {
+    //     for (auto& cond: curr_conds) {
+    //         if(/* cond.is_rhs_val && */cond.lhs_col.tab_name.compare(tab_name) == 0 && cond.lhs_col.col_name.compare(index.cols[0].name) == 0) {
+    //             has_index = true;
+    //             break; // 暂时先只考虑第一个符合条件的索引
+    //         }
+    //     }
+    //     if (has_index) {
+    //         // 根据 index.cols 自动调整 index_col_names 的顺序
+    //         for (auto& col: index.cols) {
+    //             // for (auto& cond: curr_conds) {
+    //             //     if (cond.is_rhs_val && cond.lhs_col.tab_name.compare(tab_name) == 0 && cond.lhs_col.col_name.compare(col.name) == 0) {
+    //             //         index_col_names.push_back(col.name);
+    //             //         break;
+    //             //     }
+    //             // }
+    //             index_col_names.push_back(col.name);
+    //         }
+    //         return true;
+    //     }
+    // }
+    // return false;
 }
 
 /**
@@ -171,7 +253,7 @@ std::shared_ptr<Plan> Planner::make_one_rel(std::shared_ptr<Query> query)
         // int index_no = get_indexNo(tables[i], curr_conds);
         std::vector<std::string> index_col_names;
         bool index_exist = get_index_cols(tables[i], curr_conds, index_col_names);
-        if (!index_exist) {  // 该表没有索引
+        if (index_exist == false) {  // 该表没有索引
             index_col_names.clear();
             table_scan_executors[i] = 
                 std::make_shared<ScanPlan>(T_SeqScan, sm_manager_, tables[i], curr_conds, index_col_names);
