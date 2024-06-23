@@ -17,8 +17,10 @@ format-all:		# 格式化所有文件，速度较慢
 
 # run clang-format on all lines that differ between the working directory and <commit>, which defaults to HEAD
 # 只格式化修改过的行
+# --force: 允许格式化unstaged的文件
+# 返回1表示有文件格式化过，第二次格式化时没有文件需要格式化，返回码为0，makefile不会报错
 format:
-	git clang-format
+	@git clang-format --force --extensions cpp,h || git clang-format --force --extensions cpp,h
 
 help:
 	@echo "Usage: make [target]"
