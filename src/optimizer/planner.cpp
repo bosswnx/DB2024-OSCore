@@ -320,6 +320,7 @@ std::shared_ptr<Plan> Planner::make_one_rel(std::shared_ptr<Query> query)
                 }else{
                     table_join_executors = std::make_shared<JoinPlan>(T_SortMerge, std::move(left), std::move(right), join_conds);
                 }
+                assert(left_index_exist == right_index_exist);
             } else {
                 // error
                 throw RMDBError("No join executor selected!");
