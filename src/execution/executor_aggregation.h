@@ -253,6 +253,7 @@ class AggregationExecutor : public AbstractExecutor {
                         val.init_raw(sizeof(int));
                     }
                 } else {
+                    // TODO: date type
                     throw InternalError("Unknown AggrType");
                 }
                 break;

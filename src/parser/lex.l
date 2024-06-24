@@ -39,6 +39,7 @@ identifier {alpha}(_|{alpha}|{digit})*
 value_int {sign}?{digit}+
 value_float {sign}?{digit}+\.({digit}+)?
 value_string '[^']*'
+value_date '[0-9]{4}-[0-9]{2}-[0-9]{2}'
 single_op ";"|"("|")"|","|"*"|"="|">"|"<"|"."
 
 %x STATE_COMMENT
@@ -81,6 +82,7 @@ single_op ";"|"("|")"|","|"*"|"="|">"|"<"|"."
 "INT" { return INT; }
 "CHAR" { return CHAR; }
 "FLOAT" { return FLOAT; }
+"DATE" { return DATE; }
 "INDEX" { return INDEX; }
 "AND" { return AND; }
 "JOIN" {return JOIN;}
@@ -121,10 +123,15 @@ single_op ";"|"("|")"|","|"*"|"="|">"|"<"|"."
     yylval->sv_float = atof(yytext);
     return VALUE_FLOAT;
 }
+{value_date} {
+    yylval->sv_str = std::string(yytext + 1, strlen(yytext) - 2);
+    return VALUE_DATE;
+}
 {value_string} {
     yylval->sv_str = std::string(yytext + 1, strlen(yytext) - 2);
     return VALUE_STRING;
 }
+
     /* EOF */
 <<EOF>> { return T_EOF; }
     /* unexpected char */
