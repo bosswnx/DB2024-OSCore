@@ -308,7 +308,7 @@ std::shared_ptr<Plan> Planner::make_one_rel(std::shared_ptr<Query> query)
                 // TODO: 临时fix，后续去除
                 bool left_index_exist = get_index_cols(it->lhs_col.tab_name, join_conds, left_index_col_name);
                 std::swap(it->lhs_col, it->rhs_col);
-                bool right_index_exist = get_index_cols(it->rhs_col.tab_name, join_conds, right_index_col_name);
+                bool right_index_exist = get_index_cols(it->lhs_col.tab_name, join_conds, right_index_col_name);
                 std::swap(it->lhs_col, it->rhs_col);
                 if(left_index_exist && right_index_exist){
                     std::vector<Condition> empty;

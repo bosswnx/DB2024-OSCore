@@ -197,6 +197,7 @@ public:
     }
 
     void read(char *record) {
+        assert(!is_end());
         memcpy(record, record_list[heap[0]].get(), RECORD_SIZE);
         adjust();
         total_record--;

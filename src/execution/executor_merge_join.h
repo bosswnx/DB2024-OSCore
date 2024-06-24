@@ -148,18 +148,24 @@ public:
         // 先将没有使用完的子表输出，为了通过测试
         while (USE_INDEX && !left_->is_end()) {
             readRecord(0);
+            if(!left_->is_end()){
+                break;
+            }
             testPrintRecord(left_->cols(), sort_outputL, records_[0]->data);
         }
         while (USE_INDEX && !right_->is_end()){
             readRecord(1);
+            if(!right_->is_end()){
+                break;
+            }
             testPrintRecord(right_->cols(), sort_outputR, records_[1]->data);
         }
         while(!USE_INDEX && !sorters_[0].is_end()){
-            sorters_[0].read(records_[0]->data);
+            readRecord(0);
             testPrintRecord(left_->cols(), sort_outputL, records_[0]->data);
         }
         while(!USE_INDEX && !sorters_[1].is_end()){
-            sorters_[1].read(records_[1]->data);
+            readRecord(1);
             testPrintRecord(right_->cols(), sort_outputR, records_[1]->data);
         }
         char c;
@@ -196,7 +202,6 @@ public:
             left_->beginTuple();
             right_->beginTuple();
         } else {
-            sleep(2);
             sorters_.push_back(sortBigData(left_, left_col_));
             sorters_.push_back(sortBigData(right_, right_col_));
         }
