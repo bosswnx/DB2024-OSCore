@@ -305,10 +305,11 @@ std::shared_ptr<Plan> Planner::make_one_rel(std::shared_ptr<Query> query)
             } else if(enable_sortmerge_join) {
                 std::vector<std::string> left_index_col_name;
                 std::vector<std::string> right_index_col_name;
-                bool left_index_exist = get_index_cols(it->lhs_col.tab_name, join_conds, left_index_col_name) &&
-                        std::find(left_index_col_name.begin(), left_index_col_name.end(), it->lhs_col.col_name) != left_index_col_name.end();
-                bool right_index_exist = get_index_cols(it->rhs_col.tab_name, join_conds, right_index_col_name) &&
-                        std::find(right_index_col_name.begin(), right_index_col_name.end(), it->rhs_col.col_name) != right_index_col_name.end();
+                // TODO: 临时fix，后续去除
+                bool left_index_exist = get_index_cols(it->lhs_col.tab_name, join_conds, left_index_col_name);
+                std::swap(it->lhs_col, it->rhs_col);
+                bool right_index_exist = get_index_cols(it->rhs_col.tab_name, join_conds, right_index_col_name);
+                std::swap(it->lhs_col, it->rhs_col);
                 if(left_index_exist && right_index_exist){
                     std::vector<Condition> empty;
                     left = std::make_shared<ScanPlan>(T_IndexScan, sm_manager_, it->lhs_col.tab_name, empty, left_index_col_name);
