@@ -196,6 +196,7 @@ public:
             left_->beginTuple();
             right_->beginTuple();
         } else {
+            sleep(2);
             sorters_.push_back(sortBigData(left_, left_col_));
             sorters_.push_back(sortBigData(right_, right_col_));
         }
