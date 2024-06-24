@@ -308,8 +308,10 @@ std::shared_ptr<Plan> Planner::make_one_rel(std::shared_ptr<Query> query)
                 // TODO: 临时fix，后续去除
                 bool left_index_exist = get_index_cols(it->lhs_col.tab_name, join_conds, left_index_col_name);
                 std::swap(it->lhs_col, it->rhs_col);
+                std::swap(join_conds[0].lhs_col, join_conds[0].rhs_col);
                 bool right_index_exist = get_index_cols(it->lhs_col.tab_name, join_conds, right_index_col_name);
                 std::swap(it->lhs_col, it->rhs_col);
+                std::swap(join_conds[0].lhs_col, join_conds[0].rhs_col);
                 if(left_index_exist && right_index_exist){
                     std::vector<Condition> empty;
                     left = std::make_shared<ScanPlan>(T_IndexScan, sm_manager_, it->lhs_col.tab_name, empty, left_index_col_name);
