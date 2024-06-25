@@ -164,9 +164,11 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
                     auto index_name = sm_manager_->get_ix_manager()->get_index_name(write_record->GetTableName(), index.cols);
                     auto ih = sm_manager_->ihs_.at(index_name).get();
                     char *key = new char[index.col_tot_len];
+                    int offset = 0;
                     for (int i = 0; i < index.col_num; i++) {
                         auto col = sm_manager_->db_.get_table(write_record->GetTableName()).get_col(index.cols[i].name);
-                        memcpy(key + index.cols[i].offset, record->data + col->offset, col->len);
+                        memcpy(key + offset, record->data + col->offset, col->len);
+                        offset += col->len;
                     }
                     ih->delete_entry(key, nullptr);
                     delete[] key;
@@ -182,9 +184,11 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
                     auto index_name = sm_manager_->get_ix_manager()->get_index_name(write_record->GetTableName(), index.cols);
                     auto ih = sm_manager_->ihs_.at(index_name).get();
                     char *key = new char[index.col_tot_len];
+                    int offset = 0;
                     for (int i = 0; i < index.col_num; i++) {
                         auto col = sm_manager_->db_.get_table(write_record->GetTableName()).get_col(index.cols[i].name);
-                        memcpy(key + index.cols[i].offset, write_record->GetRecord().data + col->offset, col->len);
+                        memcpy(key + offset, write_record->GetRecord().data + col->offset, col->len);
+                        offset += col->len;
                     }
                     ih->insert_entry(key, write_record->GetRid(), nullptr);
                     delete[] key;
