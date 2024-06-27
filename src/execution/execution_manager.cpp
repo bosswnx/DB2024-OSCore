@@ -195,6 +195,11 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot, 
                 col_str.resize(strlen(col_str.c_str()));
             } else if (col.type == TYPE_NULL) {
                 col_str = "NULL";
+            } else if (col.type == TYPE_DATE) {
+                int ret = *(int *)rec_buf;
+                col_str = Value::date2str(ret);
+            } else {
+                throw InternalError("Unexpected field type");
             }
             columns.push_back(col_str);
         }

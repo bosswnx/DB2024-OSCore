@@ -19,6 +19,7 @@ static const bool binary_search = false;
 
 inline int ix_compare(const char *a, const char *b, ColType type, int col_len) {
     switch (type) {
+        case TYPE_DATE:
         case TYPE_INT: {
             int ia = *(int *)a;
             int ib = *(int *)b;

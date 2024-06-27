@@ -54,7 +54,7 @@ public:
                 clause.rhs.init_raw(col->len);
                 memcpy(buf.get() + col->offset, clause.rhs.raw->data, col->len);
             }
-            
+
             // Update index
             std::vector<std::unique_ptr<RmRecord>> old_keys;
             std::vector<std::unique_ptr<RmRecord>> new_keys;
@@ -98,38 +98,23 @@ public:
                 ih->insert_entry(new_key->data, rid, context_->txn_);
             }
 
+            // Operate Transaction
+            if (context_->txn_->get_txn_mode()) {
+                // 添加的是更新之后的记录
+                // auto write_record = WriteRecord(WType::UPDATE_TUPLE, tab_name_, rid, *fh_->get_record(rid, context_));
+                // auto new_rm_record = std::make_unique<RmRecord>(record_size, buf.get());
+                // auto write_record = WriteRecord(WType::UPDATE_TUPLE, tab_name_, rid, *new_rm_record);
+                // write_record.old_record_ = *std::move(record);
+
+                auto new_rm_record = std::make_unique<RmRecord>(record_size, buf.get());
+                WriteRecord* write_record = new WriteRecord(WType::UPDATE_TUPLE, tab_name_, rid, *std::move(new_rm_record));
+                write_record->old_record_ = *std::move(record);
+                context_->txn_->append_write_record(write_record);
+            }
+
             fh_->update_record(rid, buf.get(), context_);
 
-            // bufs.emplace_back(std::move(buf));
         }
-
-        // for (int i = 0; i < rids_.size(); i++) {
-        //     auto &rid = rids_[i];
-        //     auto &buf = bufs[i];
-
-        //     // insert index
-        //     for (int j = 0; j < tab_.indexes.size(); j++) {
-        //         auto &index = tab_.indexes[j];
-        //         auto &old_key = old_keys[i*tab_.indexes.size() + j];
-        //         auto &new_key = new_keys[i*tab_.indexes.size() + j];
-        //         auto ih = sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name_, index.cols)).get();
-        //         ih->delete_entry(old_key->data, context_->txn_);
-        //         ih->insert_entry(new_key->data, rid, context_->txn_);
-        //     }
-
-        //     fh_->update_record(rid, buf.get(), context_);
-        // }
-
-        // free memory
-        // for (auto &buf: bufs) {
-        //     buf.reset();
-        // }
-        // for (auto &key: old_keys) {
-        //     key.reset();
-        // }
-        // for (auto &key: new_keys) {
-        //     key.reset();
-        // }
 
         return nullptr;
     }
