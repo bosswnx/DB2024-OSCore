@@ -28,6 +28,19 @@ bool Planner::get_index_cols(std::string tab_name, std::vector<Condition> &curr_
     TabMeta& tab = sm_manager_->db_.get_table(tab_name);
     bool has_index = false;
 
+    // 对左边是val 右边是col的条件进行处理，交换
+    for (auto &cond : curr_conds) {
+        if (cond.lhs_col.tab_name != tab_name && !cond.is_rhs_val && cond.rhs_col.tab_name == tab_name) {
+            std::swap(cond.lhs_col, cond.rhs_col);
+            std::map<CompOp, CompOp> swap_op = {
+                {OP_EQ, OP_EQ}, {OP_NE, OP_NE}, {OP_LT, OP_GT}, {OP_GT, OP_LT}, {OP_LE, OP_GE}, {OP_GE, OP_LE},
+            };
+            cond.op = swap_op.at(cond.op);
+        }
+    }
+
+
+
     // index example: id, name, value
     // cond example: id=0, name>'a', value>0
     // cond example: id=0, name='a', value>0
