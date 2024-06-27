@@ -17,20 +17,20 @@ See the Mulan PSL v2 for more details. */
 #include "system/sm.h"
 
 class SeqScanExecutor : public AbstractExecutor {
-private:
-    std::string tab_name_;              // 表的名称
-    std::vector<Condition> conds_;      // scan的条件
-    RmFileHandle *fh_;                  // 表的数据文件句柄
-    std::vector<ColMeta> cols_;         // scan后生成的记录的字段
-    size_t len_;                        // scan后生成的每条记录的长度
-    std::vector<Condition> fed_conds_;  // 同conds_，两个字段相同
+  private:
+    std::string tab_name_;             // 表的名称
+    std::vector<Condition> conds_;     // scan的条件
+    RmFileHandle *fh_;                 // 表的数据文件句柄
+    std::vector<ColMeta> cols_;        // scan后生成的记录的字段
+    size_t len_;                       // scan后生成的每条记录的长度
+    std::vector<Condition> fed_conds_; // 同conds_，两个字段相同
 
     Rid rid_{};
-    std::unique_ptr<RecScan> scan_;     // table_iterator
+    std::unique_ptr<RecScan> scan_; // table_iterator
 
     SmManager *sm_manager_;
 
-public:
+  public:
     SeqScanExecutor(SmManager *sm_manager, std::string tab_name, std::vector<Condition> conds, Context *context) {
         sm_manager_ = sm_manager;
         tab_name_ = std::move(tab_name);
@@ -53,11 +53,10 @@ public:
         return cols_;
     };
 
-
     void beginTuple() override {
         scan_ = std::make_unique<RmScan>(fh_);
         // 当前记录未消费，可能需要
-        while (!is_end() && !evalConditions()) {      // 滑过不满足条件的记录
+        while (!is_end() && !evalConditions()) { // 滑过不满足条件的记录
             scan_->next();
         }
     }
@@ -65,7 +64,7 @@ public:
     void nextTuple() override {
         // 当前记录已经消费完了
         do {
-            scan_->next();  // 滑过不满足条件的记录
+            scan_->next(); // 滑过不满足条件的记录
         } while (!is_end() && !evalConditions());
     }
 
@@ -80,9 +79,8 @@ public:
     }
 
     ColMeta get_col_offset(const TabCol &target) override {
-        auto it = std::find_if(cols_.begin(), cols_.end(), [&target](const ColMeta &col) {
-            return col.name == target.col_name;
-        });
+        auto it = std::find_if(cols_.begin(), cols_.end(),
+                               [&target](const ColMeta &col) { return col.name == target.col_name; });
         assert(it != cols_.end());
         return *it;
     }
@@ -96,7 +94,9 @@ public:
     }
 
     Rid &rid() override {
-        rid_ = scan_->rid();    // TODO：没必要维护一个`rid_`跟踪`RmScan.rid_`的变化，目前删掉`rid_`需要改动接口，未来可以删掉`rid_`
+        rid_ =
+            scan_
+                ->rid(); // TODO：没必要维护一个`rid_`跟踪`RmScan.rid_`的变化，目前删掉`rid_`需要改动接口，未来可以删掉`rid_`
         return rid_;
     }
 
@@ -104,7 +104,7 @@ public:
         return SEQ_SCAN_EXECUTOR;
     }
 
-    [[nodiscard]]  std::string tableName() const override {
+    [[nodiscard]] std::string tableName() const override {
         return tab_name_;
     };
 };

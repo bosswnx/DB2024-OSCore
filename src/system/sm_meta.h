@@ -16,19 +16,19 @@ See the Mulan PSL v2 for more details. */
 #include <string>
 #include <vector>
 
-#include "parser/ast.h"
 #include "errors.h"
+#include "parser/ast.h"
 #include "sm_defs.h"
 
 /* 字段元数据 */
 struct ColMeta {
-    std::string tab_name;   // 字段所属表名称
-    std::string name;       // 字段名称
-    std::string alias;      // 字段别名
-    ColType type;           // 字段类型
-    int len;                // 字段长度
-    int offset;             // 字段位于记录中的偏移量
-    bool index;             /** unused */
+    std::string tab_name; // 字段所属表名称
+    std::string name;     // 字段名称
+    std::string alias;    // 字段别名
+    ColType type;         // 字段类型
+    int len;              // 字段长度
+    int offset;           // 字段位于记录中的偏移量
+    bool index;           /** unused */
 
     ast::AggregationType aggr = ast::NO_AGGR;
     // see AggregationType in ast.h
@@ -46,14 +46,14 @@ struct ColMeta {
 
 /* 索引元数据 */
 struct IndexMeta {
-    std::string tab_name;           // 索引所属表名称
-    int col_tot_len;                // 索引字段长度总和
-    int col_num;                    // 索引字段数量
-    std::vector<ColMeta> cols;      // 索引包含的字段
+    std::string tab_name;      // 索引所属表名称
+    int col_tot_len;           // 索引字段长度总和
+    int col_num;               // 索引字段数量
+    std::vector<ColMeta> cols; // 索引包含的字段
 
     friend std::ostream &operator<<(std::ostream &os, const IndexMeta &index) {
         os << index.tab_name << " " << index.col_tot_len << " " << index.col_num;
-        for(auto& col: index.cols) {
+        for (auto &col : index.cols) {
             os << "\n" << col;
         }
         return os;
@@ -61,7 +61,7 @@ struct IndexMeta {
 
     friend std::istream &operator>>(std::istream &is, IndexMeta &index) {
         is >> index.tab_name >> index.col_tot_len >> index.col_num;
-        for(int i = 0; i < index.col_num; ++i) {
+        for (int i = 0; i < index.col_num; ++i) {
             ColMeta col;
             is >> col;
             index.cols.push_back(col);
@@ -69,9 +69,10 @@ struct IndexMeta {
         return is;
     }
 
-    bool has_col(const std::string& col_name) {
-        for(auto& col: cols) {
-            if(col.name.compare(col_name) == 0) return true;
+    bool has_col(const std::string &col_name) {
+        for (auto &col : cols) {
+            if (col.name.compare(col_name) == 0)
+                return true;
         }
         return false;
     }
@@ -79,15 +80,17 @@ struct IndexMeta {
 
 /* 表元数据 */
 struct TabMeta {
-    std::string name;                   // 表名称
-    std::vector<ColMeta> cols;          // 表包含的字段
-    std::vector<IndexMeta> indexes;     // 表上建立的索引
+    std::string name;               // 表名称
+    std::vector<ColMeta> cols;      // 表包含的字段
+    std::vector<IndexMeta> indexes; // 表上建立的索引
 
-    TabMeta(){}
+    TabMeta() {
+    }
 
     TabMeta(const TabMeta &other) {
         name = other.name;
-        for(auto col : other.cols) cols.push_back(col);
+        for (auto col : other.cols)
+            cols.push_back(col);
     }
 
     /* 判断当前表中是否存在名为col_name的字段 */
@@ -97,15 +100,16 @@ struct TabMeta {
     }
 
     /* 判断当前表上是否建有指定索引，索引包含的字段为col_names */
-    bool is_index(const std::vector<std::string>& col_names) const {
-        for(auto& index: indexes) {
-            if(index.col_num == col_names.size()) {
+    bool is_index(const std::vector<std::string> &col_names) const {
+        for (auto &index : indexes) {
+            if (index.col_num == col_names.size()) {
                 size_t i = 0;
-                for(; i < index.col_num; ++i) {
-                    if(index.cols[i].name.compare(col_names[i]) != 0)
+                for (; i < index.col_num; ++i) {
+                    if (index.cols[i].name.compare(col_names[i]) != 0)
                         break;
                 }
-                if(i == index.col_num) return true;
+                if (i == index.col_num)
+                    return true;
             }
         }
 
@@ -113,16 +117,18 @@ struct TabMeta {
     }
 
     /* 根据字段名称集合获取索引元数据 */
-    std::vector<IndexMeta>::iterator get_index_meta(const std::vector<std::string>& col_names) {
-        for(auto index = indexes.begin(); index != indexes.end(); ++index) {
-            if((*index).col_num != col_names.size()) continue;
-            auto& index_cols = (*index).cols;
+    std::vector<IndexMeta>::iterator get_index_meta(const std::vector<std::string> &col_names) {
+        for (auto index = indexes.begin(); index != indexes.end(); ++index) {
+            if ((*index).col_num != col_names.size())
+                continue;
+            auto &index_cols = (*index).cols;
             size_t i = 0;
-            for(; i < col_names.size(); ++i) {
-                if(index_cols[i].name.compare(col_names[i]) != 0) 
+            for (; i < col_names.size(); ++i) {
+                if (index_cols[i].name.compare(col_names[i]) != 0)
                     break;
             }
-            if(i == col_names.size()) return index;
+            if (i == col_names.size())
+                return index;
         }
         throw IndexNotFoundError(name, col_names);
     }
@@ -139,7 +145,7 @@ struct TabMeta {
     friend std::ostream &operator<<(std::ostream &os, const TabMeta &tab) {
         os << tab.name << '\n' << tab.cols.size() << '\n';
         for (auto &col : tab.cols) {
-            os << col << '\n';  // col是ColMeta类型，然后调用重载的ColMeta的操作符<<
+            os << col << '\n'; // col是ColMeta类型，然后调用重载的ColMeta的操作符<<
         }
         os << tab.indexes.size() << "\n";
         for (auto &index : tab.indexes) {
@@ -157,7 +163,7 @@ struct TabMeta {
             tab.cols.push_back(col);
         }
         is >> n;
-        for(size_t i = 0; i < n; ++i) {
+        for (size_t i = 0; i < n; ++i) {
             IndexMeta index;
             is >> index;
             tab.indexes.push_back(index);
@@ -171,15 +177,17 @@ struct TabMeta {
 class DbMeta {
     friend class SmManager;
 
-   private:
-    std::string name_;                      // 数据库名称
-    std::map<std::string, TabMeta> tabs_;   // 数据库中包含的表
+  private:
+    std::string name_;                    // 数据库名称
+    std::map<std::string, TabMeta> tabs_; // 数据库中包含的表
 
-   public:
+  public:
     // DbMeta(std::string name) : name_(name) {}
 
     /* 判断数据库中是否存在指定名称的表 */
-    bool is_table(const std::string &tab_name) const { return tabs_.find(tab_name) != tabs_.end(); }
+    bool is_table(const std::string &tab_name) const {
+        return tabs_.find(tab_name) != tabs_.end();
+    }
 
     void SetTabMeta(const std::string &tab_name, const TabMeta &meta) {
         tabs_[tab_name] = meta;

@@ -10,8 +10,8 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
-#include "execution_defs.h"
 #include "common/common.h"
+#include "execution_defs.h"
 #include "index/ix.h"
 #include "system/sm.h"
 
@@ -29,7 +29,7 @@ enum ExecutorType {
 };
 
 class AbstractExecutor {
-   public:
+  public:
     Rid _abstract_rid;
 
     Context *context_;
@@ -48,11 +48,11 @@ class AbstractExecutor {
         throw InternalError("virtual member function not implemented");
     };
 
-    virtual void beginTuple(){
+    virtual void beginTuple() {
         throw InternalError("virtual member function not implemented");
     };
 
-    virtual void nextTuple(){
+    virtual void nextTuple() {
         throw InternalError("virtual member function not implemented");
     };
 
@@ -72,7 +72,8 @@ class AbstractExecutor {
         throw InternalError("virtual member function not implemented");
     }
 
-    static std::vector<ColMeta>::const_iterator get_col(const std::vector<ColMeta> &rec_cols, const TabCol &target, bool aggr = false) {
+    static std::vector<ColMeta>::const_iterator get_col(const std::vector<ColMeta> &rec_cols, const TabCol &target,
+                                                        bool aggr = false) {
         /*
         aggr: 是否需要考虑聚合函数。如果需要考虑聚合函数，则需要同时匹配聚合函数类型
         */

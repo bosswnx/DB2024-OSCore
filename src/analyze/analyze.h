@@ -16,12 +16,11 @@ See the Mulan PSL v2 for more details. */
 #include <string>
 #include <vector>
 
-#include "parser/parser.h"
-#include "system/sm.h"
 #include "common/common.h"
+#include "system/sm.h"
 
-class Query{
-    public:
+class Query {
+  public:
     std::shared_ptr<ast::TreeNode> parse;
     // TODO jointree
     // where条件
@@ -32,7 +31,7 @@ class Query{
     std::vector<std::string> tables;
     // update 的set 值
     std::vector<SetClause> set_clauses;
-    //insert 的values值
+    // insert 的values值
     std::vector<Value> values;
 
     bool has_aggr;
@@ -41,27 +40,28 @@ class Query{
     // having
     std::vector<Condition> having_conds;
 
-    Query(){}
-
+    Query() {
+    }
 };
 
-class Analyze
-{
-private:
+class Analyze {
+  private:
     SmManager *sm_manager_;
-public:
-    Analyze(SmManager *sm_manager) : sm_manager_(sm_manager){}
-    ~Analyze(){}
+
+  public:
+    Analyze(SmManager *sm_manager) : sm_manager_(sm_manager) {
+    }
+    ~Analyze() {
+    }
 
     std::shared_ptr<Query> do_analyze(std::shared_ptr<ast::TreeNode> root);
 
-private:
+  private:
     TabCol check_column(const std::vector<ColMeta> &all_cols, TabCol target);
     void get_all_cols(const std::vector<std::string> &tab_names, std::vector<ColMeta> &all_cols);
     void get_clause(const std::vector<std::shared_ptr<ast::BinaryExpr>> &sv_conds, std::vector<Condition> &conds);
     void check_where_clause(const std::vector<std::string> &tab_names, std::vector<Condition> &conds, bool is_having);
-    void check_set_clause(const std::string &tab_name, std::vector<SetClause>& clauses);
+    void check_set_clause(const std::string &tab_name, std::vector<SetClause> &clauses);
     Value convert_sv_value(const std::shared_ptr<ast::Value> &sv_val);
     static CompOp convert_sv_comp_op(ast::SvCompOp op);
 };
-

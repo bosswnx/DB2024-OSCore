@@ -10,14 +10,16 @@ See the Mulan PSL v2 for more details. */
 
 #include "storage/disk_manager.h"
 
-#include <assert.h>    // for assert
-#include <string.h>    // for memset
-#include <sys/stat.h>  // for stat
-#include <unistd.h>    // for lseek
+#include <assert.h>   // for assert
+#include <string.h>   // for memset
+#include <sys/stat.h> // for stat
+#include <unistd.h>   // for lseek
 
 #include "defs.h"
 
-DiskManager::DiskManager() { memset(fd2pageno_, 0, MAX_FD * (sizeof(std::atomic<page_id_t>) / sizeof(char))); }
+DiskManager::DiskManager() {
+    memset(fd2pageno_, 0, MAX_FD * (sizeof(std::atomic<page_id_t>) / sizeof(char)));
+}
 
 /**
  * @description: 将数据写入文件的指定磁盘页面中
@@ -67,7 +69,8 @@ page_id_t DiskManager::allocate_page(int fd) {
     return fd2pageno_[fd]++;
 }
 
-void DiskManager::deallocate_page(__attribute__((unused)) page_id_t page_id) {}
+void DiskManager::deallocate_page(__attribute__((unused)) page_id_t page_id) {
+}
 
 bool DiskManager::is_dir(const std::string &path) {
     struct stat st;
@@ -77,7 +80,7 @@ bool DiskManager::is_dir(const std::string &path) {
 void DiskManager::create_dir(const std::string &path) {
     // Create a subdirectory
     std::string cmd = "mkdir " + path;
-    if (system(cmd.c_str()) < 0) {  // 创建一个名为path的目录
+    if (system(cmd.c_str()) < 0) { // 创建一个名为path的目录
         throw UnixError();
     }
 }
@@ -91,7 +94,7 @@ void DiskManager::destroy_dir(const std::string &path) {
 
 /**
  * @description: 判断指定路径文件是否存在
- * @return {bool} 若指定路径文件存在则返回true 
+ * @return {bool} 若指定路径文件存在则返回true
  * @param {string} &path 指定路径文件
  */
 bool DiskManager::is_file(const std::string &path) {
@@ -128,20 +131,18 @@ void DiskManager::destroy_file(const std::string &path) {
         throw FileNotClosedError(path);
     }
 
-//  It's better to ask for forgiveness than permission
-//  先判断文件是否存在再删除，并发条件下容易出错
+    //  It's better to ask for forgiveness than permission
+    //  先判断文件是否存在再删除，并发条件下容易出错
 
-//  先清空errno，再判断是否为ENOENT(No such file or directory)
+    //  先清空errno，再判断是否为ENOENT(No such file or directory)
     errno = 0;
     if (unlink(path.c_str()) == -1 && errno == ENOENT) {
         throw FileNotFoundError(path);
     }
-
 }
 
-
 /**
- * @description: 打开指定路径文件 
+ * @description: 打开指定路径文件
  * @return {int} 返回打开的文件的文件句柄
  * @param {string} &path 文件所在路径
  */
@@ -164,7 +165,7 @@ int DiskManager::open_file(const std::string &path) {
 }
 
 /**
- * @description:用于关闭指定路径文件 
+ * @description:用于关闭指定路径文件
  * @param {int} fd 打开的文件的文件句柄
  */
 void DiskManager::close_file(int fd) {
@@ -178,7 +179,6 @@ void DiskManager::close_file(int fd) {
         path2fd_.erase(path2fd_.find(path));
     }
 }
-
 
 /**
  * @description: 获得文件的大小
@@ -215,7 +215,6 @@ int DiskManager::get_file_fd(const std::string &file_name) {
     return path2fd_[file_name];
 }
 
-
 /**
  * @description:  读取日志文件内容
  * @return {int} 返回读取的数据量，若为-1说明读取数据的起始位置超过了文件大小
@@ -234,13 +233,13 @@ int DiskManager::read_log(char *log_data, int size, int offset) {
     }
 
     size = std::min(size, file_size - offset);
-    if (size == 0) return 0;
+    if (size == 0)
+        return 0;
     lseek(log_fd_, offset, SEEK_SET);
     ssize_t bytes_read = read(log_fd_, log_data, size);
     assert(bytes_read == size);
     return bytes_read;
 }
-
 
 /**
  * @description: 写日志内容

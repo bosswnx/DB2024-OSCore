@@ -16,15 +16,15 @@ See the Mulan PSL v2 for more details. */
 #include "system/sm.h"
 
 class InsertExecutor : public AbstractExecutor {
-   private:
-    TabMeta tab_;                   // 表的元数据
-    std::vector<Value> values_;     // 需要插入的数据
-    RmFileHandle *fh_;              // 表的数据文件句柄
-    std::string tab_name_;          // 表名称
-    Rid rid_;                       // 插入的位置，由于系统默认插入时不指定位置，因此当前rid_在插入后才赋值
+  private:
+    TabMeta tab_;               // 表的元数据
+    std::vector<Value> values_; // 需要插入的数据
+    RmFileHandle *fh_;          // 表的数据文件句柄
+    std::string tab_name_;      // 表名称
+    Rid rid_; // 插入的位置，由于系统默认插入时不指定位置，因此当前rid_在插入后才赋值
     SmManager *sm_manager_;
 
-   public:
+  public:
     InsertExecutor(SmManager *sm_manager, const std::string &tab_name, std::vector<Value> values, Context *context) {
         sm_manager_ = sm_manager;
         tab_ = sm_manager_->db_.get_table(tab_name);
@@ -52,14 +52,13 @@ class InsertExecutor : public AbstractExecutor {
             memcpy(rec.data + col.offset, val.raw->data, col.len);
         }
 
-        
         // Insert into index
         std::vector<std::unique_ptr<RmRecord>> recs;
-        for(auto & index : tab_.indexes) {
+        for (auto &index : tab_.indexes) {
             auto ih = sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name_, index.cols)).get();
-            char* key = new char[index.col_tot_len];
+            char *key = new char[index.col_tot_len];
             int offset = 0;
-            for(size_t i = 0; i < index.col_num; ++i) {
+            for (size_t i = 0; i < index.col_num; ++i) {
                 memcpy(key + offset, rec.data + index.cols[i].offset, index.cols[i].len);
                 offset += index.cols[i].len;
             }
@@ -73,7 +72,6 @@ class InsertExecutor : public AbstractExecutor {
             // ih->insert_entry(key, rid_, context_->txn_);
             recs.emplace_back(std::make_unique<RmRecord>(index.col_tot_len, key));
         }
-
 
         // Insert into record file
         rid_ = fh_->insert_record(rec.data, context_);
@@ -90,14 +88,17 @@ class InsertExecutor : public AbstractExecutor {
         if (context_->txn_->get_txn_mode()) {
             // auto write_record = WriteRecord(WType::INSERT_TUPLE, tab_name_, rid_);
             // context_->txn_->append_write_record(write_record);
-            WriteRecord* write_record = new WriteRecord(WType::INSERT_TUPLE, tab_name_, rid_);
+            WriteRecord *write_record = new WriteRecord(WType::INSERT_TUPLE, tab_name_, rid_);
             context_->txn_->append_write_record(write_record);
-
         }
 
         return nullptr;
     }
-    Rid &rid() override { return rid_; }
+    Rid &rid() override {
+        return rid_;
+    }
 
-    ExecutorType getType() override { return ExecutorType::INSERT_EXECUTOR; }
+    ExecutorType getType() override {
+        return ExecutorType::INSERT_EXECUTOR;
+    }
 };

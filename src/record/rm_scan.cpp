@@ -8,9 +8,9 @@ EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
-#include <algorithm>
 #include "rm_scan.h"
 #include "rm_file_handle.h"
+#include <algorithm>
 
 /**
  * @brief 初始化file_handle和rid
@@ -36,14 +36,14 @@ RmScan::RmScan(const RmFileHandle *file_handle) : file_handle_(file_handle) {
     int num_slot = hdr.num_records_per_page;
     for (page_no = 1; page_no < hdr.num_pages; ++page_no) {
         auto page_handle = file_handle->fetch_page_handle(page_no);
-        int first_one =  Bitmap::first_bit(true, page_handle.bitmap, num_slot);
+        int first_one = Bitmap::first_bit(true, page_handle.bitmap, num_slot);
         file_handle_->buffer_pool_manager_->unpin_page(page_handle.page->get_page_id(), false);
-        if(first_one < num_slot){   // 此页非全空
+        if (first_one < num_slot) { // 此页非全空
             slot_no = first_one;
             break;
         }
     }
-    if(slot_no == -1){  // 所有页面全空，到达终点
+    if (slot_no == -1) { // 所有页面全空，到达终点
         page_no = -1;
     }
     rid_ = Rid{page_no, slot_no};
@@ -61,15 +61,15 @@ void RmScan::next() {
     auto hdr = file_handle_->file_hdr_;
     int num_slot = hdr.num_records_per_page;
     int curr = rid_.slot_no;
-    assert(!is_end());      // 迭代器失效后不能再迭代
+    assert(!is_end()); // 迭代器失效后不能再迭代
 
     for (int page_no = rid_.page_no; page_no < hdr.num_pages; ++page_no) {
         // 找到此page内第一个记录
         auto page_handle = file_handle_->fetch_page_handle(page_no);
         int first_one = Bitmap::next_bit(true, page_handle.bitmap, num_slot, curr);
-        curr = -1;   // 先搜索当前页后面，再搜索后面的页的全部
+        curr = -1; // 先搜索当前页后面，再搜索后面的页的全部
         file_handle_->buffer_pool_manager_->unpin_page(page_handle.page->get_page_id(), false);
-        if (first_one < num_slot){
+        if (first_one < num_slot) {
             rid_ = {page_no, first_one};
             return;
         }
