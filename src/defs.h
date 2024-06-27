@@ -40,7 +40,7 @@ struct Rid {
 };
 
 enum ColType {
-    TYPE_INT, TYPE_FLOAT, TYPE_STRING, TYPE_NULL
+    TYPE_INT, TYPE_FLOAT, TYPE_STRING, TYPE_NULL, TYPE_DATE
 };
 
 // `static` 将`colTypeCanHold`改为internal linkage，否则无法通过编译。
@@ -54,7 +54,9 @@ inline std::string coltype2str(ColType type) {
     std::map<ColType, std::string> m = {
             {TYPE_INT,    "INT"},
             {TYPE_FLOAT,  "FLOAT"},
-            {TYPE_STRING, "STRING"}
+            {TYPE_STRING, "STRING"},
+            {TYPE_NULL,   "NULL"},
+            {TYPE_DATE,   "DATE"}
     };
     return m.at(type);
 }

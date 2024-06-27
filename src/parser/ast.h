@@ -19,7 +19,7 @@ enum JoinType {
 namespace ast {
 
 enum SvType {
-    SV_TYPE_INT, SV_TYPE_FLOAT, SV_TYPE_STRING, SV_TYPE_BOOL
+    SV_TYPE_INT, SV_TYPE_FLOAT, SV_TYPE_STRING, SV_TYPE_BOOL, SV_TYPE_DATE
 };
 
 enum SvCompOp {
@@ -121,6 +121,14 @@ struct DropIndex : public TreeNode {
             tab_name(std::move(tab_name_)), col_names(std::move(col_names_)) {}
 };
 
+struct ShowIndex : public TreeNode {
+    std::string tab_name;
+
+    ShowIndex(std::string tab_name_) :
+            tab_name(std::move(tab_name_)) {}
+};
+
+
 struct Expr : public TreeNode {
 };
 
@@ -149,6 +157,12 @@ struct BoolLit : public Value {
     bool val;
 
     BoolLit(bool val_) : val(val_) {}
+};
+
+struct DateLit : public Value {
+    std::string val;
+    
+    DateLit(std::string val_) : val(std::move(val_)) {}
 };
 
 struct Col : public Expr {
@@ -290,7 +304,7 @@ struct SetStmt : public TreeNode {
 
 // Semantic value
 struct SemValue {
-    int sv_int;
+    int sv_int; // int and date
     float sv_float;
     std::string sv_str;
     bool sv_bool;

@@ -22,6 +22,7 @@ enum ExecutorType {
     SEQ_SCAN_EXECUTOR,
     UPDATE_EXECUTOR,
     NESTEDLOOP_JOIN_EXECUTOR,
+    MERGE_JOIN_EXECUTOR,
     SORT_EXECUTOR,
     INSERT_EXECUTOR,
     INDEX_SCAN_EXECUTOR,
@@ -59,6 +60,10 @@ class AbstractExecutor {
         throw InternalError("virtual member function not implemented");
     };
 
+    [[nodiscard]] virtual std::string tableName() const {
+        throw InternalError("virtual member function not implemented");
+    };
+
     virtual Rid &rid() = 0;
 
     virtual std::unique_ptr<RmRecord> Next() = 0;
@@ -67,7 +72,7 @@ class AbstractExecutor {
         throw InternalError("virtual member function not implemented");
     }
 
-    std::vector<ColMeta>::const_iterator get_col(const std::vector<ColMeta> &rec_cols, const TabCol &target, bool aggr = false) {
+    static std::vector<ColMeta>::const_iterator get_col(const std::vector<ColMeta> &rec_cols, const TabCol &target, bool aggr = false) {
         /*
         aggr: 是否需要考虑聚合函数。如果需要考虑聚合函数，则需要同时匹配聚合函数类型
         */

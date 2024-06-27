@@ -38,6 +38,8 @@ enum class WType { INSERT_TUPLE = 0, DELETE_TUPLE, UPDATE_TUPLE};
  */
 class WriteRecord {
    public:
+    RmRecord old_record_; // for update operation
+
     WriteRecord() = default;
 
     // constructor for insert operation
@@ -51,6 +53,8 @@ class WriteRecord {
     ~WriteRecord() = default;
 
     inline RmRecord &GetRecord() { return record_; }
+
+    inline RmRecord &GetOldRecord() { return old_record_; }
 
     inline Rid &GetRid() { return rid_; }
 

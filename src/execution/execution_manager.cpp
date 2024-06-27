@@ -68,6 +68,11 @@ void QlManager::run_mutli_query(std::shared_ptr<Plan> plan, Context *context){
                 sm_manager_->drop_index(x->tab_name_, x->tab_col_names_, context);
                 break;
             }
+            case T_ShowIndex:
+            {
+                sm_manager_->show_index(x->tab_name_, context);
+                break;
+            }
             default:
                 throw InternalError("Unexpected field type");
                 break;  
@@ -190,6 +195,11 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot, 
                 col_str.resize(strlen(col_str.c_str()));
             } else if (col.type == TYPE_NULL) {
                 col_str = "NULL";
+            } else if (col.type == TYPE_DATE) {
+                int ret = *(int *)rec_buf;
+                col_str = Value::date2str(ret);
+            } else {
+                throw InternalError("Unexpected field type");
             }
             columns.push_back(col_str);
         }

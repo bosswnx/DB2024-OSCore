@@ -57,11 +57,11 @@ class Planner {
 
 
     // int get_indexNo(std::string tab_name, std::vector<Condition> curr_conds);
-    bool get_index_cols(std::string tab_name, std::vector<Condition> curr_conds, std::vector<std::string>& index_col_names);
+    bool get_index_cols(std::string tab_name, std::vector<Condition> &curr_conds, std::vector<std::string>& index_col_names);
 
     ColType interp_sv_type(ast::SvType sv_type) {
         std::map<ast::SvType, ColType> m = {
-            {ast::SV_TYPE_INT, TYPE_INT}, {ast::SV_TYPE_FLOAT, TYPE_FLOAT}, {ast::SV_TYPE_STRING, TYPE_STRING}};
+            {ast::SV_TYPE_INT, TYPE_INT}, {ast::SV_TYPE_FLOAT, TYPE_FLOAT}, {ast::SV_TYPE_STRING, TYPE_STRING}, {ast::SV_TYPE_DATE, TYPE_DATE}};
         return m.at(sv_type);
     }
 };

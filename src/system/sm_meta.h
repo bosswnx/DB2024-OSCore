@@ -68,6 +68,13 @@ struct IndexMeta {
         }
         return is;
     }
+
+    bool has_col(const std::string& col_name) {
+        for(auto& col: cols) {
+            if(col.name.compare(col_name) == 0) return true;
+        }
+        return false;
+    }
 };
 
 /* 表元数据 */

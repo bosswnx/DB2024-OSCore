@@ -22,7 +22,7 @@ using namespace ast;
 
 // keywords
 %token SHOW TABLES CREATE TABLE DROP DESC INSERT INTO VALUES DELETE FROM ASC ORDER GROUP BY HAVING
-WHERE UPDATE SET SELECT MAX MIN SUM COUNT AS INT CHAR FLOAT INDEX AND JOIN EXIT HELP TXN_BEGIN TXN_COMMIT TXN_ABORT TXN_ROLLBACK ORDER_BY ENABLE_NESTLOOP ENABLE_SORTMERGE
+WHERE UPDATE SET SELECT MAX MIN SUM COUNT AS INT CHAR FLOAT DATE INDEX AND JOIN EXIT HELP TXN_BEGIN TXN_COMMIT TXN_ABORT TXN_ROLLBACK ORDER_BY ENABLE_NESTLOOP ENABLE_SORTMERGE
 // non-keywords
 %token LEQ NEQ GEQ T_EOF
 
@@ -31,6 +31,7 @@ WHERE UPDATE SET SELECT MAX MIN SUM COUNT AS INT CHAR FLOAT INDEX AND JOIN EXIT 
 %token <sv_int> VALUE_INT
 %token <sv_float> VALUE_FLOAT
 %token <sv_bool> VALUE_BOOL
+%token <sv_str> VALUE_DATE
 
 // specify types for non-terminal symbol
 %type <sv_node> stmt dbStmt ddl dml txnStmt setStmt
@@ -142,6 +143,10 @@ ddl:
     {
         $$ = std::make_shared<DropIndex>($3, $5);
     }
+    |   SHOW INDEX FROM tbName
+    {
+        $$ = std::make_shared<ShowIndex>($4);
+    }
     ;
 
 dml:
@@ -212,6 +217,10 @@ type:
     {
         $$ = std::make_shared<TypeLen>(SV_TYPE_FLOAT, sizeof(float));
     }
+    |   DATE
+    {
+        $$ = std::make_shared<TypeLen>(SV_TYPE_DATE, sizeof(int));
+    }
     ;
 
 valueList:
@@ -241,6 +250,10 @@ value:
     |   VALUE_BOOL
     {
         $$ = std::make_shared<BoolLit>($1);
+    }
+    |   VALUE_DATE
+    {
+        $$ = std::make_shared<DateLit>($1);
     }
     ;
 

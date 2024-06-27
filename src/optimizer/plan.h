@@ -28,6 +28,7 @@ typedef enum PlanTag{
     T_DropTable,
     T_CreateIndex,
     T_DropIndex,
+    T_ShowIndex,
     T_SetKnob,
     T_Insert,
     T_Update,
@@ -41,6 +42,7 @@ typedef enum PlanTag{
     T_IndexScan,
     T_NestLoop,
     T_SortMerge,    // sort merge join
+    T_SortMergeWithIndex,   // 使用索引加快merge join
     T_Sort,
     T_Aggregation,
     T_Projection

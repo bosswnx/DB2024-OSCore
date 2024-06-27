@@ -124,9 +124,18 @@ public:
         return cols_;
     }
 
+    [[nodiscard]] size_t tupleLen() const override {
+        return len_;
+    };
+
     std::unique_ptr<RmRecord> Next() override {
         return std::move(result);
     }
+
+    ColMeta get_col_offset(const TabCol &target) override {
+        return get_col_offset_lr(cols_, target);
+    }
+
 
     Rid &rid() override { return _abstract_rid; }
 

@@ -12,6 +12,9 @@ See the Mulan PSL v2 for more details. */
 
 #include <cassert>
 #include <cstring>
+#include <climits>
+#include <cfloat>
+#include <limits>
 #include <memory>
 #include <string>
 #include "defs.h"
@@ -69,6 +72,28 @@ struct Value {
         str_val = std::move(str_val_);
     }
 
+    void set_date(std::string date_val_) {
+        // 用 int32 表示日期
+        int year, month, day;
+
+        type = TYPE_DATE;
+        // sscanf(date_val_.c_str(), "%d-%d-%d", &year, &month, &day);
+
+        if (date_val_.size() != 10 || date_val_[4] != '-' || date_val_[7] != '-') {
+            throw RMDBError("invalid date");
+        }
+        year = std::stoi(date_val_.substr(0, 4));
+        month = std::stoi(date_val_.substr(5, 2));
+        day = std::stoi(date_val_.substr(8, 2));
+
+        // TODO: 日期合法性检查
+        if (year < 0 || month < 1 || month > 12 || day < 1 || day > 31) {
+            throw RMDBError("invalid date");
+        }
+
+        int_val = (year << 9) | (month << 5) | day;
+    }
+
     bool try_cast_to(ColType target_type) {
         if (type == target_type) {
             return true;
@@ -102,14 +127,18 @@ struct Value {
             }
             memset(raw->data, 0, len);  // 空余bit填充零，如果没有空余bit就没有tailing-zero
             memcpy(raw->data, str_val.c_str(), str_val.size());
-        }else{
-            assert(false);      // 未实现的类型
+        }else if(type == TYPE_DATE){
+            assert(len == sizeof(int));
+            *(int *) (raw->data) = int_val;
+        } else {
+            throw InternalError("not implemented");
         }
     }
 
-    static Value col2Value(char *base, const ColMeta& meta) {
+    static Value col2Value(const char *base, const ColMeta& meta) {
         Value value;
         switch (meta.type) {
+            case TYPE_DATE:
             case TYPE_INT:
                 value.set_int(*(int *) (base + meta.offset));
                 break;
@@ -129,6 +158,41 @@ struct Value {
         return value;
     }
 
+    static std::string date2str(int date) {
+        int year = date >> 9;
+        int month = (date >> 5) & 0xf;
+        int day = date & 0x1f;
+        
+        char buf[11];
+        sprintf(buf, "%04d-%02d-%02d", year, month, day);
+        return std::string(buf);
+    }
+
+
+    static Value makeEdgeValue(ColType type, int len, bool is_max) {
+        Value value;
+        if (type == TYPE_INT || type == TYPE_DATE) {
+            value.set_int(is_max ? INT_MAX : INT_MIN);
+            value.init_raw(sizeof(int));
+        } else if (type == TYPE_FLOAT) {
+            value.set_float(is_max ? FLT_MAX : FLT_MIN);
+            value.init_raw(sizeof(float));
+        } else if (type == TYPE_STRING) {
+            // value.set_str(std::string(len, is_max ? 'z' : 'a'));
+            value.type = TYPE_STRING;
+            char *data = new char[len];
+            value.raw = std::make_shared<RmRecord>(len);
+            if (is_max) {
+                memset(value.raw->data, 0xff, len);  // fill with 0xff
+            } else {
+                memset(value.raw->data, 0, len);  // fill with 0x00
+            }
+        } else {
+            throw InternalError("extereme value of this type is not implemented");
+        }
+        return value;
+    }
+
     bool operator==(const Value &rhs) const {
         // 字符串不能和数字类型比较
         if ((this->type == TYPE_STRING && rhs.type != TYPE_STRING) ||
@@ -144,6 +208,7 @@ struct Value {
         }
         // 同类型相互比较
         switch (this->type) {
+            case TYPE_DATE:
             case TYPE_INT:
                 return this->int_val == rhs.int_val;
             case TYPE_FLOAT:
@@ -173,6 +238,7 @@ struct Value {
         }
         // 同类型相互比较
         switch (this->type) {
+            case TYPE_DATE:
             case TYPE_INT:
                 return this->int_val > rhs.int_val;
             case TYPE_FLOAT:
@@ -193,6 +259,24 @@ struct Value {
     }
     bool operator<=(const Value &rhs) const {
         return !this->operator>(rhs);
+    }
+
+    void print() const {
+        switch (type) {
+            case TYPE_INT:
+                std::cout << int_val;
+                break;
+            case TYPE_FLOAT:
+                std::cout << float_val;
+                break;
+            case TYPE_STRING:
+                std::cout << str_val;
+                break;
+            case TYPE_DATE:
+                std::cout << (int_val >> 9) << "-" << ((int_val >> 5) & 0xf) << "-" << (int_val & 0x1f);
+            default:
+                throw InternalError("not implemented");
+        }
     }
 };
 
