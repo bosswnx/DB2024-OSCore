@@ -48,7 +48,7 @@ class DeleteExecutor : public AbstractExecutor {
                 int offset = 0;
                 for (int i = 0; i < index.col_num; i++) {
                     auto col = tab_.get_col(index.cols[i].name);
-                    memcpy(key + offset, record->data + col->offset, col->len);
+                   memcpy(key + offset, record->data + col->offset, col->len);
                     offset += col->len;
                 }
                 ih->delete_entry(key, context_->txn_);
