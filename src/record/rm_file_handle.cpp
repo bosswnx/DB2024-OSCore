@@ -22,7 +22,7 @@ std::unique_ptr<RmRecord> RmFileHandle::get_record(const Rid &rid, Context *cont
     // 2. 初始化一个指向RmRecord的指针（赋值其内部的data和size）
     auto page_handle = fetch_page_handle(rid.page_no);
     auto record_size = page_handle.file_hdr->record_size;
-    assert(Bitmap::is_set(page_handle.bitmap, rid.slot_no));    // 此记录必须有效
+    assert(Bitmap::is_set(page_handle.bitmap, rid.slot_no)); // 此记录必须有效
     auto ptr = std::make_unique<RmRecord>(record_size, page_handle.get_slot(rid.slot_no));
     buffer_pool_manager_->unpin_page({fd_, rid.page_no}, false);
     return ptr;
@@ -46,11 +46,11 @@ Rid RmFileHandle::insert_record(char *buf, Context *context) {
     int num_slot = file_hdr_.num_records_per_page;
     // 找到第一个0
     int first_zero = Bitmap::first_bit(false, page_handle.bitmap, num_slot);
-    assert(first_zero < num_slot);     // 因为此页未满所以一定能找到
+    assert(first_zero < num_slot); // 因为此页未满所以一定能找到
     memcpy(page_handle.get_slot(first_zero), buf, record_size);
     Bitmap::set(page_handle.bitmap, first_zero);
     page_handle.page_hdr->num_records++;
-    if (page_handle.page_hdr->num_records == file_hdr_.num_records_per_page) {     // 刚好用完这一页
+    if (page_handle.page_hdr->num_records == file_hdr_.num_records_per_page) { // 刚好用完这一页
         // 在插入前这一页在链表中，所以`next_free_page_no`有效
         file_hdr_.first_free_page_no = page_handle.page_hdr->next_free_page_no;
     }
@@ -95,7 +95,6 @@ void RmFileHandle::delete_record(const Rid &rid, Context *context) {
     buffer_pool_manager_->unpin_page(page_handle.page->get_page_id(), true);
 }
 
-
 /**
  * @description: 更新记录文件中记录号为rid的记录
  * @param {Rid&} rid 要更新的记录的记录号（位置）
@@ -114,7 +113,7 @@ void RmFileHandle::update_record(const Rid &rid, char *buf, Context *context) {
 
 /**
  * 以下函数为辅助函数，仅提供参考，可以选择完成如下函数，也可以删除如下函数，在单元测试中不涉及如下函数接口的直接调用
-*/
+ */
 /**
  * @description: 获取指定页面的页面句柄
  * @param {int} page_no 页面号
@@ -164,7 +163,7 @@ RmPageHandle RmFileHandle::create_page_handle() {
     // -1是非法值，说明此文件连一页也没有分配给记录（file_handler占据了第0页）
     if (no == file_hdr_.num_pages || no == -1) {
         auto page_handle = create_new_page_handle();
-        page_handle.page_hdr->next_free_page_no = file_hdr_.num_pages;   // free page链表末尾
+        page_handle.page_hdr->next_free_page_no = file_hdr_.num_pages; // free page链表末尾
         return page_handle;
     }
     assert(no != 0 && no < file_hdr_.num_pages);
@@ -185,7 +184,7 @@ void RmFileHandle::release_page_handle(RmPageHandle &page_handle) {
     // 将新的空闲page插入到链表中，同时保证链表降序
 
     page_id_t page_no = page_handle.page->get_page_id().page_no;
-    assert(page_no != file_hdr_.first_free_page_no);  // 不能释放一个已经空闲的页
+    assert(page_no != file_hdr_.first_free_page_no); // 不能释放一个已经空闲的页
     if (page_no > file_hdr_.first_free_page_no) {
         // ... -> 4 -> 插入5 -> 6 -> ...
         // ... -> 3 -> 插入5 -> 6 -> ...
@@ -196,7 +195,7 @@ void RmFileHandle::release_page_handle(RmPageHandle &page_handle) {
             buffer_pool_manager_->unpin_page(prev.page->get_page_id(), false);
             prev = fetch_page_handle(next_no);
         }
-        assert(prev.page_hdr->next_free_page_no != page_no);     // 不能释放一个已经空闲的页
+        assert(prev.page_hdr->next_free_page_no != page_no); // 不能释放一个已经空闲的页
         assert(prev.page_hdr->next_free_page_no != -1);      // 链表中不存在这一页
         page_handle.page_hdr->next_free_page_no = prev.page_hdr->next_free_page_no;
         prev.page_hdr->next_free_page_no = page_no;
@@ -207,5 +206,5 @@ void RmFileHandle::release_page_handle(RmPageHandle &page_handle) {
         file_hdr_.first_free_page_no = page_handle.page->get_page_id().page_no;
     }
     buffer_pool_manager_->unpin_page(page_handle.page->get_page_id(), true);
-//    file_hdr_.num_pages--;    // 此文件分配了页后就不会收回
+    //    file_hdr_.num_pages--;    // 此文件分配了页后就不会收回
 }

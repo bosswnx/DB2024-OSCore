@@ -8,10 +8,12 @@ EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
-#include <algorithm>
 #include "lru_replacer.h"
+#include <algorithm>
 
-LRUReplacer::LRUReplacer(size_t num_pages) { max_size_ = num_pages; }
+LRUReplacer::LRUReplacer(size_t num_pages) {
+    max_size_ = num_pages;
+}
 
 LRUReplacer::~LRUReplacer() = default;
 
@@ -23,14 +25,14 @@ LRUReplacer::~LRUReplacer() = default;
 bool LRUReplacer::victim(frame_id_t *frame_id) {
     // C++17 std::scoped_lock
     // 它能够避免死锁发生，其构造函数能够自动进行上锁操作，析构函数会对互斥量进行解锁操作，保证线程安全。
-    std::scoped_lock lock{latch_};  //  如果编译报错可以替换成其他lock
+    std::scoped_lock lock{latch_}; //  如果编译报错可以替换成其他lock
 
     // Todo:
     //  利用lru_replacer中的LRUlist_,LRUHash_实现LRU策略
     //  选择合适的frame指定为淘汰页面,赋值给*frame_id
     auto last = LRUlist_.rbegin();
     if (last == LRUlist_.rend()) {
-        frame_id = nullptr;     // 无效的赋值
+        frame_id = nullptr; // 无效的赋值
         return false;
     }
     *frame_id = *last;
@@ -52,7 +54,7 @@ void LRUReplacer::pin(frame_id_t frame_id) {
     if (it != LRUhash_.end()) {
         LRUlist_.erase(it->second);
         LRUhash_.erase(LRUhash_.find(frame_id));
-    }else if(frame_id < 0 || frame_id >= max_size_) {
+    } else if (frame_id < 0 || frame_id >= max_size_) {
         char msg[80];
         std::snprintf(msg, 80, "LRUReplacer::pin invalid frame_id: %d", frame_id);
         throw InternalError(std::string(msg));
@@ -68,20 +70,22 @@ void LRUReplacer::unpin(frame_id_t frame_id) {
     //  支持并发锁
     //  选择一个frame取消固定
     std::scoped_lock lock{latch_};
-    if(frame_id < 0 || frame_id >= max_size_){
+    if (frame_id < 0 || frame_id >= max_size_) {
         // 处理非法情况
         char msg[80];
         std::snprintf(msg, 80, "LRUReplacer::unpin invalid frame_id: %d", frame_id);
         throw InternalError(std::string(msg));
     }
-    if(LRUhash_.find(frame_id) != LRUhash_.end()){  // 第二次unpin无效果
+    if (LRUhash_.find(frame_id) != LRUhash_.end()) { // 第二次unpin无效果
         return;
     }
-    LRUlist_.push_front(frame_id);      // 插入至链表头部
-    LRUhash_[frame_id] = LRUlist_.begin();      // 插入不会使迭代器失效
+    LRUlist_.push_front(frame_id);         // 插入至链表头部
+    LRUhash_[frame_id] = LRUlist_.begin(); // 插入不会使迭代器失效
 }
 
 /**
  * @description: 获取当前replacer中可以被淘汰的页面数量
  */
-size_t LRUReplacer::Size() { return LRUlist_.size(); }
+size_t LRUReplacer::Size() {
+    return LRUlist_.size();
+}

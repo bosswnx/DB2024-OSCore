@@ -17,21 +17,21 @@ See the Mulan PSL v2 for more details. */
 #include "system/sm.h"
 
 class NestedLoopJoinExecutor : public AbstractExecutor {
-private:
-    std::unique_ptr<AbstractExecutor> left_;    // 左儿子节点（需要join的表）
-    std::unique_ptr<AbstractExecutor> right_;   // 右儿子节点（需要join的表）
-    size_t len_;                                // join后获得的每条记录的长度
-    std::vector<ColMeta> cols_;                 // join后获得的记录的字段
+  private:
+    std::unique_ptr<AbstractExecutor> left_;  // 左儿子节点（需要join的表）
+    std::unique_ptr<AbstractExecutor> right_; // 右儿子节点（需要join的表）
+    size_t len_;                              // join后获得的每条记录的长度
+    std::vector<ColMeta> cols_;               // join后获得的记录的字段
 
-    std::vector<Condition> fed_conds_;          // join条件
-    std::unique_ptr<RmRecord> result;           // 存储当前迭代轮次的值，供`Next`取走
-    std::vector<std::unique_ptr<RmRecord>> left_record;     // seqScan扫描出的左表记录
-    std::vector<std::unique_ptr<RmRecord>> right_record;    // seqScan扫描出的右表记录
+    std::vector<Condition> fed_conds_;                   // join条件
+    std::unique_ptr<RmRecord> result;                    // 存储当前迭代轮次的值，供`Next`取走
+    std::vector<std::unique_ptr<RmRecord>> left_record;  // seqScan扫描出的左表记录
+    std::vector<std::unique_ptr<RmRecord>> right_record; // seqScan扫描出的右表记录
     std::vector<std::unique_ptr<RmRecord>>::iterator lit;
-    std::vector<std::unique_ptr<RmRecord>>::iterator rit;   // `rit`和`lit`组成按照排列组合顺序遍历左右表记录的cursor
+    std::vector<std::unique_ptr<RmRecord>>::iterator rit; // `rit`和`lit`组成按照排列组合顺序遍历左右表记录的cursor
     bool isend;
 
-public:
+  public:
     NestedLoopJoinExecutor(std::unique_ptr<AbstractExecutor> left, std::unique_ptr<AbstractExecutor> right,
                            std::vector<Condition> conds) {
         left_ = std::move(left);
@@ -39,7 +39,7 @@ public:
         len_ = left_->tupleLen() + right_->tupleLen();
         cols_ = left_->cols();
         auto right_cols = right_->cols();
-        for (auto &col: right_cols) {
+        for (auto &col : right_cols) {
             col.offset += left_->tupleLen();
         }
         cols_.insert(cols_.end(), right_cols.begin(), right_cols.end());
@@ -54,13 +54,13 @@ public:
         for (right_->beginTuple(); !right_->is_end(); right_->nextTuple()) {
             right_record.push_back(right_->Next());
         }
-        lit = left_record.begin();      // `push_back`使得迭代器失效，必须放在`push_back`后面
+        lit = left_record.begin(); // `push_back`使得迭代器失效，必须放在`push_back`后面
         rit = right_record.begin();
-        isend = lit == left_record.end() || rit == right_record.end();  // 避免左右表为空的情况
-        while (!isend && !evalConditions()) {     // 滑过不满足条件的记录
+        isend = lit == left_record.end() || rit == right_record.end(); // 避免左右表为空的情况
+        while (!isend && !evalConditions()) {                          // 滑过不满足条件的记录
             step();
         }
-        if (isend) {      // 没有任何满足条件的记录
+        if (isend) { // 没有任何满足条件的记录
             return;
         }
         result = std::make_unique<RmRecord>(len_);
@@ -70,18 +70,17 @@ public:
 
     void nextTuple() override {
         assert(!is_end());
-        do {         // 滑过不满足条件的记录
+        do { // 滑过不满足条件的记录
             step();
         } while (!isend && !evalConditions());
-        if (isend) {      // 滑到末尾
+        if (isend) { // 滑到末尾
             return;
         }
         // 默认内连接，将左表和右表中满足条件的进行排列组合
-        assert(result == nullptr);      // 检查迭代后是否把值取出
+        assert(result == nullptr); // 检查迭代后是否把值取出
         result = std::make_unique<RmRecord>(len_);
         memcpy(result->data, (*lit)->data, left_->tupleLen());
         memcpy(result->data + left_->tupleLen(), (*rit)->data, right_->tupleLen());
-
     }
 
     [[nodiscard]] bool is_end() const override {
@@ -91,11 +90,11 @@ public:
     /// 嵌套循环中移动内部cursor的帮助函数
     void step() {
         rit++;
-        if (rit == right_record.end()) {      // rewind
+        if (rit == right_record.end()) { // rewind
             lit++;
             rit = right_record.begin();
             if (lit == left_record.end()) {
-                isend = true;   // 迭代到达终点
+                isend = true; // 迭代到达终点
                 return;
             }
         }
@@ -136,8 +135,9 @@ public:
         return get_col_offset_lr(cols_, target);
     }
 
-
-    Rid &rid() override { return _abstract_rid; }
+    Rid &rid() override {
+        return _abstract_rid;
+    }
 
     ExecutorType getType() override {
         return NESTEDLOOP_JOIN_EXECUTOR;

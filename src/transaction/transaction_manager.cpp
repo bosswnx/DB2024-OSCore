@@ -20,7 +20,7 @@ std::unordered_map<txn_id_t, Transaction *> TransactionManager::txn_map = {};
  * @param {Transaction*} txn 事务指针，空指针代表需要创建新事务，否则开始已有事务
  * @param {LogManager*} log_manager 日志管理器指针
  */
-Transaction * TransactionManager::begin(Transaction* txn, LogManager* log_manager) {
+Transaction *TransactionManager::begin(Transaction *txn, LogManager *log_manager) {
     // Todo:
     // 1. 判断传入事务参数是否为空指针
     // 2. 如果为空指针，创建新事务
@@ -43,7 +43,7 @@ Transaction * TransactionManager::begin(Transaction* txn, LogManager* log_manage
  * @param {Transaction*} txn 需要提交的事务
  * @param {LogManager*} log_manager 日志管理器指针
  */
-void TransactionManager::commit(Transaction* txn, LogManager* log_manager) {
+void TransactionManager::commit(Transaction *txn, LogManager *log_manager) {
     // Todo:
     // 1. 如果存在未提交的写操作，提交所有的写操作
     // 2. 释放所有锁
@@ -55,18 +55,20 @@ void TransactionManager::commit(Transaction* txn, LogManager* log_manager) {
     if (txn->get_write_set()->size() > 0) {
         // for (auto write_record : *(txn->get_write_set())) {
         //     auto fh_ = sm_manager_->fhs_.at(write_record->GetTableName()).get();
-        //     // auto ih_ = sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(write_record->GetTableName(), write_record->GetIndexColNames())).get();
+        //     // auto ih_ =
+        //     sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(write_record->GetTableName(),
+        //     write_record->GetIndexColNames())).get();
         //     // fh_->insert_record(write_record->GetRid(), write_record->GetRecord().data);
 
         //     if (write_record->GetWriteType() == WType::INSERT_TUPLE) {
         //         fh_->insert_record(write_record->GetRid(), write_record->GetRecord().data);
         //         // insert index
         //         for (auto &index : sm_manager_->db_.get_table(write_record->GetTableName()).indexes) {
-        //             auto index_name = sm_manager_->get_ix_manager()->get_index_name(write_record->GetTableName(), index.cols);
-        //             auto ih = sm_manager_->ihs_.at(index_name).get();
-        //             char *key = new char[index.col_tot_len];
-        //             for (int i = 0; i < index.col_num; i++) {
-        //                 auto col = sm_manager_->db_.get_table(write_record->GetTableName()).get_col(index.cols[i].name);
+        //             auto index_name = sm_manager_->get_ix_manager()->get_index_name(write_record->GetTableName(),
+        //             index.cols); auto ih = sm_manager_->ihs_.at(index_name).get(); char *key = new
+        //             char[index.col_tot_len]; for (int i = 0; i < index.col_num; i++) {
+        //                 auto col =
+        //                 sm_manager_->db_.get_table(write_record->GetTableName()).get_col(index.cols[i].name);
         //                 memcpy(key + index.cols[i].offset, write_record->GetRecord().data + col->offset, col->len);
         //             }
         //             ih->insert_entry(key, write_record->GetRid(), nullptr);
@@ -77,11 +79,11 @@ void TransactionManager::commit(Transaction* txn, LogManager* log_manager) {
         //         fh_->delete_record(write_record->GetRid(), nullptr);
         //         // delete index
         //         for (auto &index : sm_manager_->db_.get_table(write_record->GetTableName()).indexes) {
-        //             auto index_name = sm_manager_->get_ix_manager()->get_index_name(write_record->GetTableName(), index.cols);
-        //             auto ih = sm_manager_->ihs_.at(index_name).get();
-        //             char *key = new char[index.col_tot_len];
-        //             for (int i = 0; i < index.col_num; i++) {
-        //                 auto col = sm_manager_->db_.get_table(write_record->GetTableName()).get_col(index.cols[i].name);
+        //             auto index_name = sm_manager_->get_ix_manager()->get_index_name(write_record->GetTableName(),
+        //             index.cols); auto ih = sm_manager_->ihs_.at(index_name).get(); char *key = new
+        //             char[index.col_tot_len]; for (int i = 0; i < index.col_num; i++) {
+        //                 auto col =
+        //                 sm_manager_->db_.get_table(write_record->GetTableName()).get_col(index.cols[i].name);
         //                 memcpy(key + index.cols[i].offset, write_record->GetRecord().data + col->offset, col->len);
         //             }
         //             ih->delete_entry(key, nullptr);
@@ -91,13 +93,12 @@ void TransactionManager::commit(Transaction* txn, LogManager* log_manager) {
         //         fh_->update_record(write_record->GetRid(), write_record->GetRecord().data, nullptr);
         //         // update index
         //         for (auto &index : sm_manager_->db_.get_table(write_record->GetTableName()).indexes) {
-        //             auto index_name = sm_manager_->get_ix_manager()->get_index_name(write_record->GetTableName(), index.cols);
-        //             auto ih = sm_manager_->ihs_.at(index_name).get();
-        //             char *key_old = new char[index.col_tot_len];
-        //             char *key_new = new char[index.col_tot_len];
-        //             size_t offset = 0;
-        //             for (int i = 0; i < index.col_num; i++) {
-        //                 auto col = sm_manager_->db_.get_table(write_record->GetTableName()).get_col(index.cols[i].name);
+        //             auto index_name = sm_manager_->get_ix_manager()->get_index_name(write_record->GetTableName(),
+        //             index.cols); auto ih = sm_manager_->ihs_.at(index_name).get(); char *key_old = new
+        //             char[index.col_tot_len]; char *key_new = new char[index.col_tot_len]; size_t offset = 0; for (int
+        //             i = 0; i < index.col_num; i++) {
+        //                 auto col =
+        //                 sm_manager_->db_.get_table(write_record->GetTableName()).get_col(index.cols[i].name);
         //                 memcpy(key_old + offset, write_record->GetOldRecord().data + col->offset, col->len);
         //                 memcpy(key_new + offset, write_record->GetRecord().data + col->offset, col->len);
         //                 offset += col->len;
@@ -140,7 +141,7 @@ void TransactionManager::commit(Transaction* txn, LogManager* log_manager) {
  * @param {Transaction *} txn 需要回滚的事务
  * @param {LogManager} *log_manager 日志管理器指针
  */
-void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
+void TransactionManager::abort(Transaction *txn, LogManager *log_manager) {
     // Todo:
     // 1. 回滚所有写操作
     // 2. 释放所有锁
@@ -151,8 +152,9 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
     // 1. 回滚所有写操作
     if (txn->get_write_set()->size() > 0) {
         // for (auto write_record : *(txn->get_write_set())) {
-            // 倒序
-        for (auto write_record_ = txn->get_write_set()->rbegin(); write_record_ != txn->get_write_set()->rend(); write_record_++) {
+        // 倒序
+        for (auto write_record_ = txn->get_write_set()->rbegin(); write_record_ != txn->get_write_set()->rend();
+             write_record_++) {
             auto write_record = *write_record_;
             auto fh_ = sm_manager_->fhs_.at(write_record->GetTableName()).get();
 
@@ -161,7 +163,8 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
 
                 // delete index
                 for (auto &index : sm_manager_->db_.get_table(write_record->GetTableName()).indexes) {
-                    auto index_name = sm_manager_->get_ix_manager()->get_index_name(write_record->GetTableName(), index.cols);
+                    auto index_name =
+                        sm_manager_->get_ix_manager()->get_index_name(write_record->GetTableName(), index.cols);
                     auto ih = sm_manager_->ihs_.at(index_name).get();
                     char *key = new char[index.col_tot_len];
                     int offset = 0;
@@ -181,7 +184,8 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
                 fh_->insert_record(write_record->GetRid(), write_record->GetRecord().data);
                 // insert index
                 for (auto &index : sm_manager_->db_.get_table(write_record->GetTableName()).indexes) {
-                    auto index_name = sm_manager_->get_ix_manager()->get_index_name(write_record->GetTableName(), index.cols);
+                    auto index_name =
+                        sm_manager_->get_ix_manager()->get_index_name(write_record->GetTableName(), index.cols);
                     auto ih = sm_manager_->ihs_.at(index_name).get();
                     char *key = new char[index.col_tot_len];
                     int offset = 0;
@@ -198,7 +202,8 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
                 fh_->update_record(write_record->GetRid(), write_record->GetOldRecord().data, nullptr);
                 // update index
                 for (auto &index : sm_manager_->db_.get_table(write_record->GetTableName()).indexes) {
-                    auto index_name = sm_manager_->get_ix_manager()->get_index_name(write_record->GetTableName(), index.cols);
+                    auto index_name =
+                        sm_manager_->get_ix_manager()->get_index_name(write_record->GetTableName(), index.cols);
                     auto ih = sm_manager_->ihs_.at(index_name).get();
                     char *key_old = new char[index.col_tot_len];
                     char *key_new = new char[index.col_tot_len];
@@ -244,5 +249,4 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
 
     // 5. 更新事务状态
     txn->set_state(TransactionState::ABORTED);
-    
 }

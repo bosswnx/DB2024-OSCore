@@ -16,11 +16,11 @@ See the Mulan PSL v2 for more details. */
 #include "system/sm.h"
 
 class AggregationExecutor : public AbstractExecutor {
-   private:
+  private:
     std::unique_ptr<AbstractExecutor> prev_;
     size_t len_;
     std::vector<Condition> having_conds_;
-    
+
     std::vector<ColMeta> group_cols_;
 
     std::vector<ColMeta> sel_cols_;
@@ -29,17 +29,17 @@ class AggregationExecutor : public AbstractExecutor {
     std::map<std::string, int> grouped_records_idx_;
     std::vector<std::vector<std::unique_ptr<RmRecord>>> grouped_records_;
 
-    int curr_idx = -1; // 用于遍历    
+    int curr_idx = -1; // 用于遍历
     std::vector<std::unique_ptr<RmRecord>> curr_records;
 
     bool empty_table_aggr_ = false;
 
-   public:
-    AggregationExecutor(std::unique_ptr<AbstractExecutor> prev, const std::vector<TabCol> &sel_cols, 
-        const std::vector<TabCol> &group_cols, const std::vector<Condition> &having_conds) {
+  public:
+    AggregationExecutor(std::unique_ptr<AbstractExecutor> prev, const std::vector<TabCol> &sel_cols,
+                        const std::vector<TabCol> &group_cols, const std::vector<Condition> &having_conds) {
         prev_ = std::move(prev);
 
-        auto &prev_cols = prev_->cols();    // 获取上一个算子的列信息
+        auto &prev_cols = prev_->cols(); // 获取上一个算子的列信息
 
         for (auto &sel_group_col : group_cols) {
             auto pos = get_col(prev_cols, sel_group_col, false);
@@ -62,7 +62,7 @@ class AggregationExecutor : public AbstractExecutor {
                 if (sel_col.aggr == ast::AGGR_TYPE_COUNT) {
                     col.type = TYPE_INT;
                     col.len = sizeof(int);
-                } else if(sel_col.aggr == ast::AGGR_TYPE_SUM) {
+                } else if (sel_col.aggr == ast::AGGR_TYPE_SUM) {
                     if (col.type == TYPE_STRING) {
                         col.type = TYPE_INT;
                         col.len = sizeof(int);
@@ -79,14 +79,14 @@ class AggregationExecutor : public AbstractExecutor {
             offset += col.len;
         }
         len_ = offset;
-        
+
         having_conds_ = having_conds;
     }
 
     void store_group(std::unique_ptr<RmRecord> record) {
         /*
-        * 计算 group by 用到的 key，并存储到 grouped_records_ 中
-        */
+         * 计算 group by 用到的 key，并存储到 grouped_records_ 中
+         */
         std::string key = "";
         for (auto group_col : group_cols_) {
             key += std::string(record->data + group_col.offset, group_col.len);
@@ -115,7 +115,8 @@ class AggregationExecutor : public AbstractExecutor {
                 }
             }
             ++curr_idx;
-            if (is_end()) return;
+            if (is_end())
+                return;
             // curr_records = std::move(grouped_records_[curr_idx]);
             auto &grouped_records = grouped_records_[curr_idx];
             curr_records.clear();
@@ -132,26 +133,27 @@ class AggregationExecutor : public AbstractExecutor {
             auto handle = record.get();
             char *base = handle->data;
             // 逻辑不短路，目前只实现逻辑与
-            if (!std::all_of(having_conds_.begin(), having_conds_.end(), [base, this](const Condition& cond) {
-                if(cond.lhs_col.aggr == ast::NO_AGGR) {
-                    auto value = Value::col2Value(base, *get_col(sel_cols_initial_, cond.lhs_col, true));
-                    return cond.eval_with_rvalue(value);
-                } else {
-                    ColMeta col_meta;
-                    if (cond.lhs_col.aggr == ast::AGGR_TYPE_COUNT && cond.lhs_col.col_name == "*") {
-                        col_meta = make_count_star_col(cond.lhs_col);
+            if (!std::all_of(having_conds_.begin(), having_conds_.end(), [base, this](const Condition &cond) {
+                    if (cond.lhs_col.aggr == ast::NO_AGGR) {
+                        auto value = Value::col2Value(base, *get_col(sel_cols_initial_, cond.lhs_col, true));
+                        return cond.eval_with_rvalue(value);
                     } else {
-                        col_meta = *get_col(sel_cols_initial_, cond.lhs_col, true);
+                        ColMeta col_meta;
+                        if (cond.lhs_col.aggr == ast::AGGR_TYPE_COUNT && cond.lhs_col.col_name == "*") {
+                            col_meta = make_count_star_col(cond.lhs_col);
+                        } else {
+                            col_meta = *get_col(sel_cols_initial_, cond.lhs_col, true);
+                        }
+                        auto value = aggregate_value(col_meta);
+                        return cond.eval_with_rvalue(value);
                     }
-                    auto value = aggregate_value(col_meta);
-                    return cond.eval_with_rvalue(value);
-                }
-            })) {
+                })) {
                 to_delete.push_back(i);
             }
             ++i;
         }
-        if (to_delete.size() == curr_records.size()) return false;
+        if (to_delete.size() == curr_records.size())
+            return false;
         for (int i = to_delete.size() - 1; i >= 0; --i) {
             curr_records.erase(curr_records.begin() + to_delete[i]);
         }
@@ -180,95 +182,99 @@ class AggregationExecutor : public AbstractExecutor {
             return val;
         }
         switch (sel_col.aggr) {
-            case ast::NO_AGGR:
-                val = Value::col2Value(curr_records[0]->data, sel_col);
-                val.init_raw(sel_col.len);
-                break;
-            case ast::AGGR_TYPE_COUNT:
-                val.type = TYPE_INT;
-                val.set_int(curr_records.size());
+        case ast::NO_AGGR:
+            val = Value::col2Value(curr_records[0]->data, sel_col);
+            val.init_raw(sel_col.len);
+            break;
+        case ast::AGGR_TYPE_COUNT:
+            val.type = TYPE_INT;
+            val.set_int(curr_records.size());
+            val.init_raw(sizeof(int));
+            break;
+        case ast::AGGR_TYPE_MAX:
+            val.type = sel_col.type;
+            val = Value::col2Value(curr_records[0]->data, sel_col);
+            for (auto &record : curr_records) {
+                Value tmp = Value::col2Value(record->data, sel_col);
+                if (tmp > val)
+                    val = tmp;
+            }
+            val.init_raw(sel_col.len);
+            break;
+        case ast::AGGR_TYPE_MIN:
+            val.type = sel_col.type;
+            val = Value::col2Value(curr_records[0]->data, sel_col);
+            for (auto &record : curr_records) {
+                Value tmp = Value::col2Value(record->data, sel_col);
+                if (tmp < val)
+                    val = tmp;
+            }
+            val.init_raw(sel_col.len);
+            break;
+        case ast::AGGR_TYPE_SUM:
+            val.type = sel_col.type;
+            if (sel_col.type == TYPE_INT) {
+                int sum = 0;
+                for (auto &record : curr_records) {
+                    sum += *(int *)(record->data + sel_col.offset);
+                }
+                val.set_int(sum);
                 val.init_raw(sizeof(int));
-                break;
-            case ast::AGGR_TYPE_MAX:
-                val.type = sel_col.type;
-                val = Value::col2Value(curr_records[0]->data, sel_col);
+            } else if (sel_col.type == TYPE_FLOAT) {
+                float sum = 0;
                 for (auto &record : curr_records) {
-                    Value tmp = Value::col2Value(record->data, sel_col);
-                    if (tmp > val) val = tmp;
+                    sum += *(float *)(record->data + sel_col.offset);
                 }
-                val.init_raw(sel_col.len);
-                break;
-            case ast::AGGR_TYPE_MIN:
-                val.type = sel_col.type;
-                val = Value::col2Value(curr_records[0]->data, sel_col);
-                for (auto &record : curr_records) {
-                    Value tmp = Value::col2Value(record->data, sel_col);
-                    if (tmp < val) val = tmp;
-                }
-                val.init_raw(sel_col.len);
-                break;
-            case ast::AGGR_TYPE_SUM:
-                val.type = sel_col.type;
-                if (sel_col.type == TYPE_INT) {
-                    int sum = 0;
-                    for (auto &record : curr_records) {
-                        sum += *(int *)(record->data + sel_col.offset);
-                    }
-                    val.set_int(sum);
-                    val.init_raw(sizeof(int));
-                } else if (sel_col.type == TYPE_FLOAT) {
-                    float sum = 0;
-                    for (auto &record : curr_records) {
-                        sum += *(float *)(record->data + sel_col.offset);
-                    }
-                    val.set_float(sum);
-                    val.init_raw(sizeof(float));
-                } else if (sel_col.type == TYPE_STRING) {
-                    // 字符串的sum
-                    val.type = TYPE_INT;
-                    std::string sum;
-                    float sum_float = 0;
-                    bool is_float = false;
+                val.set_float(sum);
+                val.init_raw(sizeof(float));
+            } else if (sel_col.type == TYPE_STRING) {
+                // 字符串的sum
+                val.type = TYPE_INT;
+                std::string sum;
+                float sum_float = 0;
+                bool is_float = false;
 
-                    for (auto &record : curr_records) {
-                        const char* base = record->data + sel_col.offset;
-                        sum = "";
-                        for (size_t i=0; i<sel_col.len; ++i) {
-                            if (base[i] >= '0' && base[i] <= '9') sum += base[i];
-                            else if (base[i] == '.'){
-                                sum += base[i];
-                                is_float = true;
-                            }
-                            else break;
-                        }
-                        if (sum.size() == 0) continue;
-                        sum_float += std::stof(sum);
+                for (auto &record : curr_records) {
+                    const char *base = record->data + sel_col.offset;
+                    sum = "";
+                    for (size_t i = 0; i < sel_col.len; ++i) {
+                        if (base[i] >= '0' && base[i] <= '9')
+                            sum += base[i];
+                        else if (base[i] == '.') {
+                            sum += base[i];
+                            is_float = true;
+                        } else
+                            break;
                     }
-                    if (is_float) {
-                        val.set_float(sum_float);
-                        val.type = TYPE_FLOAT;
-                        val.init_raw(sizeof(float));
-                    } else {
-                        val.set_int((int)sum_float);
-                        val.init_raw(sizeof(int));
-                    }
-                } else {
-                    // TODO: date type
-                    throw InternalError("Unknown AggrType");
+                    if (sum.size() == 0)
+                        continue;
+                    sum_float += std::stof(sum);
                 }
-                break;
-            
-            default:
+                if (is_float) {
+                    val.set_float(sum_float);
+                    val.type = TYPE_FLOAT;
+                    val.init_raw(sizeof(float));
+                } else {
+                    val.set_int((int)sum_float);
+                    val.init_raw(sizeof(int));
+                }
+            } else {
+                // TODO: date type
                 throw InternalError("Unknown AggrType");
+            }
+            break;
+
+        default:
+            throw InternalError("Unknown AggrType");
         }
         return val;
     }
 
-    [[nodiscard]] bool is_end() const override{
+    [[nodiscard]] bool is_end() const override {
         return curr_idx >= (int)grouped_records_.size();
     }
 
-    [[nodiscard]] const std::vector<ColMeta> &cols() const override{
+    [[nodiscard]] const std::vector<ColMeta> &cols() const override {
         return sel_cols_;
     }
 
@@ -298,7 +304,9 @@ class AggregationExecutor : public AbstractExecutor {
         return std::make_unique<RmRecord>(len_, data.get());
     }
 
-    Rid &rid() override { return _abstract_rid; }
+    Rid &rid() override {
+        return _abstract_rid;
+    }
 
     ExecutorType getType() override {
         return ExecutorType::AGGREGATION_EXECUTOR;

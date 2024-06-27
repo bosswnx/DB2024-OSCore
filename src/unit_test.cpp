@@ -12,9 +12,9 @@ See the Mulan PSL v2 for more details. */
 
 #define private public
 
+#include "execution/external_merge_sort.h"
 #include "record/rm.h"
 #include "storage/buffer_pool_manager.h"
-#include "execution/external_merge_sort.h"
 
 #undef private
 
@@ -27,18 +27,18 @@ See the Mulan PSL v2 for more details. */
 #include <memory>
 #include <set>
 #include <string>
-#include <thread>  // NOLINT
+#include <thread> // NOLINT
 #include <unordered_map>
 #include <vector>
 
-#include "gtest/gtest.h"
 #include "replacer/lru_replacer.h"
 #include "storage/disk_manager.h"
+#include "gtest/gtest.h"
 
-const std::string TEST_DB_NAME = "BufferPoolManagerTest_db";  // 以数据库名作为根目录
-const std::string TEST_FILE_NAME = "basic";                   // 测试文件的名字
-const std::string TEST_FILE_NAME_CCUR = "concurrency";        // 测试文件的名字
-const std::string TEST_FILE_NAME_BIG = "bigdata";             // 测试文件的名字
+const std::string TEST_DB_NAME = "BufferPoolManagerTest_db"; // 以数据库名作为根目录
+const std::string TEST_FILE_NAME = "basic";                  // 测试文件的名字
+const std::string TEST_FILE_NAME_CCUR = "concurrency";       // 测试文件的名字
+const std::string TEST_FILE_NAME_BIG = "bigdata";            // 测试文件的名字
 constexpr int MAX_FILES = 32;
 constexpr int MAX_PAGES = 128;
 constexpr size_t TEST_BUFFER_POOL_SIZE = MAX_FILES * MAX_PAGES;
@@ -47,9 +47,11 @@ constexpr size_t TEST_BUFFER_POOL_SIZE = MAX_FILES * MAX_PAGES;
 auto disk_manager = std::make_unique<DiskManager>();
 auto buffer_pool_manager = std::make_unique<BufferPoolManager>(TEST_BUFFER_POOL_SIZE, disk_manager.get());
 
-std::unordered_map<int, char *> mock;  // fd -> buffer
+std::unordered_map<int, char *> mock; // fd -> buffer
 
-char *mock_get_page(int fd, int page_no) { return &mock[fd][page_no * PAGE_SIZE]; }
+char *mock_get_page(int fd, int page_no) {
+    return &mock[fd][page_no * PAGE_SIZE];
+}
 
 void check_disk(int fd, int page_no) {
     char buf[PAGE_SIZE];
@@ -69,7 +71,7 @@ void check_disk_all() {
 
 void check_cache(int fd, int page_no) {
     Page *page = buffer_pool_manager->fetch_page(PageId{fd, page_no});
-    char *mock_buf = mock_get_page(fd, page_no);  // &mock[fd][page_no * PAGE_SIZE];
+    char *mock_buf = mock_get_page(fd, page_no); // &mock[fd][page_no * PAGE_SIZE];
     assert(memcmp(page->get_data(), mock_buf, PAGE_SIZE) == 0);
     buffer_pool_manager->unpin_page(PageId{fd, page_no}, false);
 }
@@ -101,11 +103,15 @@ int rand_fd() {
 }
 
 struct rid_hash_t {
-    size_t operator()(const Rid &rid) const { return (rid.page_no << 16) | rid.slot_no; }
+    size_t operator()(const Rid &rid) const {
+        return (rid.page_no << 16) | rid.slot_no;
+    }
 };
 
 struct rid_equal_t {
-    bool operator()(const Rid &x, const Rid &y) const { return x.page_no == y.page_no && x.slot_no == y.slot_no; }
+    bool operator()(const Rid &x, const Rid &y) const {
+        return x.page_no == y.page_no && x.slot_no == y.slot_no;
+    }
 };
 
 void check_equal(const RmFileHandle *file_handle,
@@ -133,9 +139,10 @@ void check_equal(const RmFileHandle *file_handle,
         assert(memcmp(rec->data, mock.at(scan.rid()).c_str(), file_handle->file_hdr_.record_size) == 0);
         num_records++;
     }
-    assert((num_records == mock.size() ||  mock.size() - num_records != 1
-        || num_records != file_handle->file_hdr_.num_records_per_page)
-        && "----------bug规律：mock.size() == num_records_per_page + 1 && num_records == num_records_per_page----------");
+    assert(
+        (num_records == mock.size() || mock.size() - num_records != 1 ||
+         num_records != file_handle->file_hdr_.num_records_per_page) &&
+        "----------bug规律：mock.size() == num_records_per_page + 1 && num_records == num_records_per_page----------");
     assert(num_records == mock.size());
 }
 
@@ -149,11 +156,11 @@ std::ostream &operator<<(std::ostream &os, const Rid &rid) {
  * 然后在此目录下创建和打开文件TEST_FILE_NAME_BIG，记录其文件描述符fd */
 
 class BigStorageTest : public ::testing::Test {
-   public:
+  public:
     std::unique_ptr<DiskManager> disk_manager_;
-    int fd_ = -1;  // 此文件描述符为disk_manager_->open_file的返回值
+    int fd_ = -1; // 此文件描述符为disk_manager_->open_file的返回值
 
-   public:
+  public:
     // This function is called before every test.
     void SetUp() override {
         ::testing::Test::SetUp();
@@ -237,11 +244,11 @@ TEST(LRUReplacerTest, SampleTest) {
  * 对于每个测试点，先创建和进入目录TEST_DB_NAME
  * 然后在此目录下创建和打开文件TEST_FILE_NAME，记录其文件描述符fd */
 class BufferPoolManagerTest : public ::testing::Test {
-   public:
+  public:
     std::unique_ptr<DiskManager> disk_manager_;
-    int fd_ = -1;  // 此文件描述符为disk_manager_->open_file的返回值
+    int fd_ = -1; // 此文件描述符为disk_manager_->open_file的返回值
 
-   public:
+  public:
     // This function is called before every test.
     void SetUp() override {
         ::testing::Test::SetUp();
@@ -336,11 +343,11 @@ TEST_F(BufferPoolManagerTest, SampleTest) {
 
 // Add by jiawen
 class BufferPoolManagerConcurrencyTest : public ::testing::Test {
-   public:
+  public:
     std::unique_ptr<DiskManager> disk_manager_;
-    int fd_ = -1;  // 此文件描述符为disk_manager_->open_file的返回值
+    int fd_ = -1; // 此文件描述符为disk_manager_->open_file的返回值
 
-   public:
+  public:
     // This function is called before every test.
     void SetUp() override {
         ::testing::Test::SetUp();
@@ -394,14 +401,14 @@ TEST_F(BufferPoolManagerConcurrencyTest, ConcurrencyTest) {
 
         std::vector<std::thread> threads;
         for (int tid = 0; tid < num_threads; tid++) {
-            threads.push_back(std::thread([&bpm, fd]() {  // NOLINT
+            threads.push_back(std::thread([&bpm, fd]() { // NOLINT
                 PageId temp_page_id = {.fd = fd, .page_no = INVALID_PAGE_ID};
                 std::vector<PageId> page_ids;
                 for (int i = 0; i < 10; i++) {
                     auto new_page = bpm->new_page(&temp_page_id);
                     EXPECT_NE(nullptr, new_page);
                     ASSERT_NE(nullptr, new_page);
-                    strcpy(new_page->get_data(), std::to_string(temp_page_id.page_no).c_str());  // NOLINT
+                    strcpy(new_page->get_data(), std::to_string(temp_page_id.page_no).c_str()); // NOLINT
                     page_ids.push_back(temp_page_id);
                 }
                 for (int i = 0; i < 10; i++) {
@@ -417,14 +424,14 @@ TEST_F(BufferPoolManagerConcurrencyTest, ConcurrencyTest) {
                 for (int j = 0; j < 10; j++) {
                     EXPECT_EQ(1, bpm->delete_page(page_ids[j]));
                 }
-                bpm->flush_all_pages(fd);  // add this test by jiawen
+                bpm->flush_all_pages(fd); // add this test by jiawen
             }));
-        }  // end loop tid=[0,num_threads)
+        } // end loop tid=[0,num_threads)
 
         for (int i = 0; i < num_threads; i++) {
             threads[i].join();
         }
-    }  // end loop run=[0,num_runs)
+    } // end loop run=[0,num_runs)
 }
 
 // TODO: fix detected memory leaks found by Google Test
@@ -432,7 +439,7 @@ TEST(StorageTest, SimpleTest) {
     srand((unsigned)time(nullptr));
 
     /** Test disk_manager */
-    std::vector<std::string> filenames(MAX_FILES);  // MAX_FILES=32
+    std::vector<std::string> filenames(MAX_FILES); // MAX_FILES=32
     std::unordered_map<int, std::string> fd2name;
     for (size_t i = 0; i < filenames.size(); i++) {
         auto &filename = filenames[i];
@@ -457,12 +464,12 @@ TEST(StorageTest, SimpleTest) {
 
         // open file
         int fd = disk_manager->open_file(filename);
-        char *tmp = new char[PAGE_SIZE * MAX_PAGES];  // TODO: fix error in detected memory leaks
+        char *tmp = new char[PAGE_SIZE * MAX_PAGES]; // TODO: fix error in detected memory leaks
 
         mock[fd] = tmp;
         fd2name[fd] = filename;
 
-        disk_manager->set_fd2pageno(fd, 0);  // diskmanager在fd对应的文件中从0开始分配page_no
+        disk_manager->set_fd2pageno(fd, 0); // diskmanager在fd对应的文件中从0开始分配page_no
     }
 
     /** Test buffer_pool_manager*/
@@ -471,7 +478,7 @@ TEST(StorageTest, SimpleTest) {
     for (auto &fh : mock) {
         int fd = fh.first;
         for (page_id_t i = 0; i < MAX_PAGES; i++) {
-            rand_buf(PAGE_SIZE, init_buf);  // 将init_buf填充PAGE_SIZE个字节的随机数据
+            rand_buf(PAGE_SIZE, init_buf); // 将init_buf填充PAGE_SIZE个字节的随机数据
 
             PageId tmp_page_id = {.fd = fd, .page_no = INVALID_PAGE_ID};
             Page *page = buffer_pool_manager->new_page(&tmp_page_id);
@@ -482,12 +489,12 @@ TEST(StorageTest, SimpleTest) {
             memcpy(page->get_data(), init_buf, PAGE_SIZE);
             buffer_pool_manager->unpin_page(PageId{fd, page_no}, true);
 
-            char *mock_buf = mock_get_page(fd, page_no);  // &mock[fd][page_no * PAGE_SIZE]
+            char *mock_buf = mock_get_page(fd, page_no); // &mock[fd][page_no * PAGE_SIZE]
             memcpy(mock_buf, init_buf, PAGE_SIZE);
 
             num_pages++;
 
-            check_cache(fd, page_no);  // 调用了fetch_page, unpin_page
+            check_cache(fd, page_no); // 调用了fetch_page, unpin_page
         }
     }
     check_cache_all();
@@ -581,7 +588,7 @@ TEST(RecordManagerTest, SimpleTest) {
 
     std::string filename = "abc.txt";
 
-    int record_size = 4 + rand() % 256;  // 元组大小随便设置，只要不超过RM_MAX_RECORD_SIZE
+    int record_size = 4 + rand() % 256; // 元组大小随便设置，只要不超过RM_MAX_RECORD_SIZE
     // test files
     {
         // 删除残留的同名文件
@@ -665,7 +672,7 @@ TEST(RecordManagerTest, SimpleTest) {
 }
 
 class ExternalMergeSortTest : public ::testing::Test {
-public:
+  public:
     void SetUp() override {
         // 删除上次测试残留的文件
         system("find . -name 'aux*' -exec rm {} \\;");
@@ -673,8 +680,8 @@ public:
 };
 
 int compare_int(const void *a, const void *b, void *arg) {
-    int x = *(int *) a;
-    int y = *(int *) b;
+    int x = *(int *)a;
+    int y = *(int *)b;
     if (x > y) {
         return 1;
     } else if (x < y) {
@@ -689,7 +696,7 @@ TEST_F(ExternalMergeSortTest, SimpleTest1) {
     ExternalMergeSorter sorter(1024 * 1024 * 4, 4, compare_int, nullptr);
     for (int i = 0; i < 0x400; ++i) {
         for (int j = 0x8000; j > -0x8000; --j) {
-            sorter.write((const char *) &j);
+            sorter.write((const char *)&j);
         }
     }
     sorter.endWrite();
@@ -697,7 +704,7 @@ TEST_F(ExternalMergeSortTest, SimpleTest1) {
     for (int i = -0x8000 + 1; i <= 0x8000; ++i) {
         for (int j = 0; j < 0x400; ++j) {
             int val;
-            sorter.read((char *) &val);
+            sorter.read((char *)&val);
             ASSERT_EQ(val, i);
         }
         std::cout << i << '\n';
@@ -706,11 +713,10 @@ TEST_F(ExternalMergeSortTest, SimpleTest1) {
 
 TEST_F(ExternalMergeSortTest, SimpleTest2) {
     // 除了分隔的文件不同，其他和SimpleTest1相同
-    ExternalMergeSorter sorter(1024 * 1024 * 3, 4,
-                               compare_int, nullptr);
+    ExternalMergeSorter sorter(1024 * 1024 * 3, 4, compare_int, nullptr);
     for (int i = 0; i < 0x400; ++i) {
         for (int j = 0x8000; j > -0x8000; --j) {
-            sorter.write((const char *) &j);
+            sorter.write((const char *)&j);
         }
     }
     sorter.endWrite();
@@ -718,7 +724,7 @@ TEST_F(ExternalMergeSortTest, SimpleTest2) {
     for (int i = -0x8000 + 1; i <= 0x8000; ++i) {
         for (int j = 0; j < 0x400; ++j) {
             int val;
-            sorter.read((char *) &val);
+            sorter.read((char *)&val);
             ASSERT_EQ(val, i);
         }
         std::cout << i << '\n';
@@ -730,16 +736,15 @@ TEST_F(ExternalMergeSortTest, ReverseOrder) {
     const int num_records_total = 0x1020000;
     // 0x1020000 /0x100000 = 16.125 个文件
     // 0x100000 / 0x20010 = 7.999023556694739 个页
-    ExternalMergeSorter sorter(1024 * 1024 * 6, 4,
-                               compare_int, nullptr);
+    ExternalMergeSorter sorter(1024 * 1024 * 6, 4, compare_int, nullptr);
     for (int i = num_records_total - 1; i >= 0; --i) {
-        sorter.write((const char *) &i);
+        sorter.write((const char *)&i);
     }
     sorter.endWrite();
     sorter.beginRead();
     for (int i = 0; i < num_records_total; ++i) {
         int val;
-        sorter.read((char *) &val);
+        sorter.read((char *)&val);
         if (i % 1000 == 0) {
             std::cout << val << '\n';
         }
@@ -751,12 +756,11 @@ TEST_F(ExternalMergeSortTest, RandomInput) {
     // 64M规模的排序，数据完全随机
     const int num_records_total = 0x1020000;
     std::ifstream urandom("/dev/urandom", std::ios::binary);
-    ExternalMergeSorter sorter(1024 * 1024 * 6, 4,
-                               compare_int, nullptr);
+    ExternalMergeSorter sorter(1024 * 1024 * 6, 4, compare_int, nullptr);
     for (int i = 0; i < num_records_total; ++i) {
         int val;
-        urandom.read((char *) &val, 4);
-        sorter.write((const char *) &val);
+        urandom.read((char *)&val, 4);
+        sorter.write((const char *)&val);
     }
     urandom.close();
     sorter.endWrite();
@@ -764,7 +768,7 @@ TEST_F(ExternalMergeSortTest, RandomInput) {
     int last_val = INT32_MIN;
     for (int i = 0; i < num_records_total; ++i) {
         int val;
-        sorter.read((char *) &val);
+        sorter.read((char *)&val);
         if (last_val > val) {
             std::cout << last_val << ' ' << val << '\n';
         }
@@ -784,18 +788,17 @@ int wave1(int x) {
 TEST_F(ExternalMergeSortTest, SawtoothWave1) {
     // 258M规模的排序，锯齿形
     const int num_records_total = 0x10200300;
-    ExternalMergeSorter sorter(1024 * 1024 * 32, 4,
-                               compare_int, nullptr);
+    ExternalMergeSorter sorter(1024 * 1024 * 32, 4, compare_int, nullptr);
     for (int i = 0; i < num_records_total; ++i) {
         int val = wave1(i);
-        sorter.write((const char *) &val);
+        sorter.write((const char *)&val);
     }
     sorter.endWrite();
     sorter.beginRead();
     int last_val = INT32_MIN;
     for (int i = 0; i < num_records_total; ++i) {
         int val;
-        sorter.read((char *) &val);
+        sorter.read((char *)&val);
         if (i % 1000 == 0) {
             std::cout << val << '\n';
         }
@@ -807,18 +810,17 @@ TEST_F(ExternalMergeSortTest, SawtoothWave1) {
 TEST_F(ExternalMergeSortTest, SawtoothWave2) {
     // 波形为倾斜的锯齿形，其他和SawtoothWave1相同
     const int num_records_total = 0x10200300;
-    ExternalMergeSorter sorter(1024 * 1024 * 32, 4,
-                               compare_int, nullptr);
+    ExternalMergeSorter sorter(1024 * 1024 * 32, 4, compare_int, nullptr);
     for (int i = 0; i < num_records_total; ++i) {
         int val = wave1(i) - i;
-        sorter.write((const char *) &val);
+        sorter.write((const char *)&val);
     }
     sorter.endWrite();
     sorter.beginRead();
     int last_val = INT32_MIN;
     for (int i = 0; i < num_records_total; ++i) {
         int val;
-        sorter.read((char *) &val);
+        sorter.read((char *)&val);
         if (i % 1000 == 0) {
             std::cout << val << '\n';
         }
@@ -827,22 +829,21 @@ TEST_F(ExternalMergeSortTest, SawtoothWave2) {
     }
 }
 
-TEST_F(ExternalMergeSortTest, SortInMemory){
+TEST_F(ExternalMergeSortTest, SortInMemory) {
     // 测试输入数据不必使用外存辅助排序的情况
     // 除了文件大小不同，其他和SawtoothWave2相同
     const int num_records_total = 0x10200300;
-    ExternalMergeSorter sorter(1024 * 1024 * 32, 4,
-                               compare_int, nullptr);
+    ExternalMergeSorter sorter(1024 * 1024 * 32, 4, compare_int, nullptr);
     for (int i = 0; i < num_records_total; ++i) {
         int val = wave1(i) - i;
-        sorter.write((const char *) &val);
+        sorter.write((const char *)&val);
     }
     sorter.endWrite();
     sorter.beginRead();
     int last_val = INT32_MIN;
     for (int i = 0; i < num_records_total; ++i) {
         int val;
-        sorter.read((char *) &val);
+        sorter.read((char *)&val);
         if (i % 1000 == 0) {
             std::cout << val << '\n';
         }

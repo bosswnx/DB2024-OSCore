@@ -17,37 +17,35 @@ See the Mulan PSL v2 for more details. */
 #include "system/sm.h"
 
 class IndexScanExecutor : public AbstractExecutor {
-   private:
-    std::string tab_name_;                      // 表名称
-    TabMeta tab_;                               // 表的元数据
-    std::vector<Condition> conds_;              // 扫描条件
-    RmFileHandle *fh_;                          // 表的数据文件句柄
+  private:
+    std::string tab_name_;         // 表名称
+    TabMeta tab_;                  // 表的元数据
+    std::vector<Condition> conds_; // 扫描条件
+    RmFileHandle *fh_;             // 表的数据文件句柄
     IxIndexHandle *ih_;
-    std::vector<ColMeta> cols_;                 // 需要读取的字段
-    size_t len_;                                // 选取出来的一条记录的长度
-    std::vector<Condition> fed_conds_;          // 扫描条件，和conds_字段相同
+    std::vector<ColMeta> cols_;        // 需要读取的字段
+    size_t len_;                       // 选取出来的一条记录的长度
+    std::vector<Condition> fed_conds_; // 扫描条件，和conds_字段相同
     std::vector<Condition> index_conds_;
 
-    std::vector<std::string> index_col_names_;  // index scan涉及到的索引包含的字段
-    IndexMeta index_meta_;                      // index scan涉及到的索引元数据
+    std::vector<std::string> index_col_names_; // index scan涉及到的索引包含的字段
+    IndexMeta index_meta_;                     // index scan涉及到的索引元数据
 
     Rid rid_;
     std::unique_ptr<RecScan> scan_;
 
     SmManager *sm_manager_;
 
-
-
-   public:
-    IndexScanExecutor(SmManager *sm_manager, std::string tab_name, std::vector<Condition> conds, std::vector<std::string> index_col_names,
-                    Context *context) {
+  public:
+    IndexScanExecutor(SmManager *sm_manager, std::string tab_name, std::vector<Condition> conds,
+                      std::vector<std::string> index_col_names, Context *context) {
         sm_manager_ = sm_manager;
         context_ = context;
         tab_name_ = std::move(tab_name);
         tab_ = sm_manager_->db_.get_table(tab_name_);
         conds_ = std::move(conds);
         // index_no_ = index_no;
-        index_col_names_ = index_col_names; 
+        index_col_names_ = index_col_names;
         index_meta_ = *(tab_.get_index_meta(index_col_names_));
         fh_ = sm_manager_->fhs_.at(tab_name_).get();
         ih_ = sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name_, index_col_names_)).get();
@@ -73,7 +71,8 @@ class IndexScanExecutor : public AbstractExecutor {
                 if (cond.lhs_col.col_name == col_name) {
                     index_conds_.push_back(cond);
                 }
-                if (cond.op != OP_EQ) break; // 1. conds_已经按照索引顺序排好序 2. 遇到非等值条件就break
+                if (cond.op != OP_EQ)
+                    break; // 1. conds_已经按照索引顺序排好序 2. 遇到非等值条件就break
             }
         }
     }
@@ -89,42 +88,42 @@ class IndexScanExecutor : public AbstractExecutor {
         auto upper_k = new char[index_meta_.col_tot_len];
         // 根据条件填充lower_k和upper_k
         size_t offset = 0;
-        for (int i=0; i<index_col_names_.size(); ++i) {
+        for (int i = 0; i < index_col_names_.size(); ++i) {
             Value val;
-            if (i<index_conds_.size()) {
+            if (i < index_conds_.size()) {
 
                 // 该索引col有条件
                 auto &cond = index_conds_[i];
                 auto col_meta = *tab_.get_col(cond.lhs_col.col_name);
                 switch (cond.op) {
-                    case OP_NE:
-                        // lower_k 是最小值
-                        val = Value::makeEdgeValue(col_meta.type, col_meta.len, false);
-                        memcpy(lower_k + offset, val.raw->data, col_meta.len);
-                        // upper_k 是最大值
-                        val = Value::makeEdgeValue(col_meta.type, col_meta.len, true);
-                        memcpy(upper_k + offset, val.raw->data, col_meta.len);
-                        break;
-                    case OP_EQ:
-                        memcpy(lower_k + offset, cond.rhs_val.raw->data, col_meta.len);
-                        memcpy(upper_k + offset, cond.rhs_val.raw->data, col_meta.len);
-                        break;
-                    case OP_LE:
-                    case OP_LT:
-                        // lower_k 是最小值
-                        val = Value::makeEdgeValue(col_meta.type, col_meta.len, false);
-                        memcpy(lower_k + offset, val.raw->data, col_meta.len);
-                        memcpy(upper_k + offset, cond.rhs_val.raw->data, col_meta.len);
-                        break;
-                    case OP_GE:
-                    case OP_GT:
-                        // upper_k 是最大值
-                        val = Value::makeEdgeValue(col_meta.type, col_meta.len, true);
-                        memcpy(lower_k + offset, cond.rhs_val.raw->data, col_meta.len);
-                        memcpy(upper_k + offset, val.raw->data, col_meta.len);
-                        break;
-                    default:
-                        assert(false);
+                case OP_NE:
+                    // lower_k 是最小值
+                    val = Value::makeEdgeValue(col_meta.type, col_meta.len, false);
+                    memcpy(lower_k + offset, val.raw->data, col_meta.len);
+                    // upper_k 是最大值
+                    val = Value::makeEdgeValue(col_meta.type, col_meta.len, true);
+                    memcpy(upper_k + offset, val.raw->data, col_meta.len);
+                    break;
+                case OP_EQ:
+                    memcpy(lower_k + offset, cond.rhs_val.raw->data, col_meta.len);
+                    memcpy(upper_k + offset, cond.rhs_val.raw->data, col_meta.len);
+                    break;
+                case OP_LE:
+                case OP_LT:
+                    // lower_k 是最小值
+                    val = Value::makeEdgeValue(col_meta.type, col_meta.len, false);
+                    memcpy(lower_k + offset, val.raw->data, col_meta.len);
+                    memcpy(upper_k + offset, cond.rhs_val.raw->data, col_meta.len);
+                    break;
+                case OP_GE:
+                case OP_GT:
+                    // upper_k 是最大值
+                    val = Value::makeEdgeValue(col_meta.type, col_meta.len, true);
+                    memcpy(lower_k + offset, cond.rhs_val.raw->data, col_meta.len);
+                    memcpy(upper_k + offset, val.raw->data, col_meta.len);
+                    break;
+                default:
+                    assert(false);
                 }
             } else {
                 // 该索引col没有条件，直接用最小值和最大值
@@ -145,7 +144,8 @@ class IndexScanExecutor : public AbstractExecutor {
         // 查看是否有符合的
         while (!scan_->is_end()) {
             rid_ = scan_->rid();
-            if (evalConditions()) break;
+            if (evalConditions())
+                break;
             scan_->next();
         }
     }
@@ -155,7 +155,7 @@ class IndexScanExecutor : public AbstractExecutor {
         char *base = handle->data;
 
         // 逻辑不短路，目前只实现逻辑与
-        return std::all_of(conds_.begin(), conds_.end(), [base, this](const Condition& cond) {
+        return std::all_of(conds_.begin(), conds_.end(), [base, this](const Condition &cond) {
             auto value = Value::col2Value(base, get_col_offset(cond.lhs_col));
 
             // std::cout << "compare: " << cond.lhs_col.col_name << " ";
@@ -167,20 +167,20 @@ class IndexScanExecutor : public AbstractExecutor {
     }
 
     ColMeta get_col_offset(const TabCol &target) override {
-        auto it = std::find_if(cols_.begin(), cols_.end(), [&target](const ColMeta &col) {
-            return col.name == target.col_name;
-        });
+        auto it = std::find_if(cols_.begin(), cols_.end(),
+                               [&target](const ColMeta &col) { return col.name == target.col_name; });
         assert(it != cols_.end());
         return *it;
     }
 
-
     void nextTuple() override {
-        if (scan_->is_end()) return;
+        if (scan_->is_end())
+            return;
         scan_->next();
         while (!scan_->is_end()) {
             rid_ = scan_->rid();
-            if (evalConditions()) break;
+            if (evalConditions())
+                break;
             scan_->next();
         }
     }
@@ -196,9 +196,13 @@ class IndexScanExecutor : public AbstractExecutor {
     [[nodiscard]] const std::vector<ColMeta> &cols() const override {
         return cols_;
     };
-    Rid &rid() override { return rid_; }
+    Rid &rid() override {
+        return rid_;
+    }
 
-    ExecutorType getType() override { return ExecutorType::INDEX_SCAN_EXECUTOR; }
+    ExecutorType getType() override {
+        return ExecutorType::INDEX_SCAN_EXECUTOR;
+    }
 
     [[nodiscard]] std::string tableName() const override {
         return tab_name_;

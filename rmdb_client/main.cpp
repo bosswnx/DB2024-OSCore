@@ -1,6 +1,6 @@
+#include <cstdio>
 #include <netdb.h>
 #include <netinet/in.h>
-#include <cstdio>
 #include <readline/history.h>
 #include <readline/readline.h>
 #include <sys/socket.h>
@@ -18,7 +18,9 @@
 #define MAX_MEM_BUFFER_SIZE 8192
 #define PORT_DEFAULT 8765
 
-bool is_exit_command(std::string &cmd) { return cmd == "exit" || cmd == "exit;" || cmd == "bye" || cmd == "bye;"; }
+bool is_exit_command(std::string &cmd) {
+    return cmd == "exit" || cmd == "exit;" || cmd == "bye" || cmd == "bye;";
+}
 
 int init_unix_sock(const char *unix_sock_path) {
     int sockfd = socket(PF_UNIX, SOCK_STREAM, 0);
@@ -70,31 +72,31 @@ int init_tcp_sock(const char *server_host, int server_port) {
 }
 
 int main(int argc, char *argv[]) {
-    int ret = 0;  // set_terminal_noncanonical();
-                  //    if (ret < 0) {
-                  //        printf("Warning: failed to set terminal non canonical. Long command may be "
-                  //               "handled incorrect\n");
-                  //    }
+    int ret = 0; // set_terminal_noncanonical();
+                 //    if (ret < 0) {
+                 //        printf("Warning: failed to set terminal non canonical. Long command may be "
+                 //               "handled incorrect\n");
+                 //    }
 
     const char *unix_socket_path = nullptr;
-    const char *server_host = "127.0.0.1";  // 127.0.0.1 192.168.31.25
+    const char *server_host = "127.0.0.1"; // 127.0.0.1 192.168.31.25
     int server_port = PORT_DEFAULT;
     int opt;
 
     while ((opt = getopt(argc, argv, "s:h:p:")) > 0) {
         switch (opt) {
-            case 's':
-                unix_socket_path = optarg;
-                break;
-            case 'p':
-                char *ptr;
-                server_port = (int)strtol(optarg, &ptr, 10);
-                break;
-            case 'h':
-                server_host = optarg;
-                break;
-            default:
-                break;
+        case 's':
+            unix_socket_path = optarg;
+            break;
+        case 'p':
+            char *ptr;
+            server_port = (int)strtol(optarg, &ptr, 10);
+            break;
+        case 'h':
+            server_host = optarg;
+            break;
+        default:
+            break;
         }
     }
 
