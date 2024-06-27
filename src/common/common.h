@@ -12,6 +12,9 @@ See the Mulan PSL v2 for more details. */
 
 #include <cassert>
 #include <cstring>
+#include <climits>
+#include <cfloat>
+#include <limits>
 #include <memory>
 #include <string>
 #include "defs.h"
@@ -107,7 +110,7 @@ struct Value {
         }
     }
 
-    static Value col2Value(char *base, const ColMeta& meta) {
+    static Value col2Value(const char *base, const ColMeta& meta) {
         Value value;
         switch (meta.type) {
             case TYPE_INT:
@@ -125,6 +128,30 @@ struct Value {
             }
             default:
                 throw InternalError("not implemented");
+        }
+        return value;
+    }
+
+    static Value makeEdgeValue(ColType type, int len, bool is_max) {
+        Value value;
+        if (type == TYPE_INT) {
+            value.set_int(is_max ? INT_MAX : INT_MIN);
+            value.init_raw(sizeof(int));
+        } else if (type == TYPE_FLOAT) {
+            value.set_float(is_max ? FLT_MAX : FLT_MIN);
+            value.init_raw(sizeof(float));
+        } else if (type == TYPE_STRING) {
+            // value.set_str(std::string(len, is_max ? 'z' : 'a'));
+            value.type = TYPE_STRING;
+            char *data = new char[len];
+            value.raw = std::make_shared<RmRecord>(len);
+            if (is_max) {
+                memset(value.raw->data, 0xff, len);  // fill with 0xff
+            } else {
+                memset(value.raw->data, 0, len);  // fill with 0x00
+            }
+        } else {
+            throw InternalError("extereme value of this type is not implemented");
         }
         return value;
     }
@@ -193,6 +220,22 @@ struct Value {
     }
     bool operator<=(const Value &rhs) const {
         return !this->operator>(rhs);
+    }
+
+    void print() const {
+        switch (type) {
+            case TYPE_INT:
+                std::cout << int_val;
+                break;
+            case TYPE_FLOAT:
+                std::cout << float_val;
+                break;
+            case TYPE_STRING:
+                std::cout << str_val;
+                break;
+            default:
+                throw InternalError("not implemented");
+        }
     }
 };
 

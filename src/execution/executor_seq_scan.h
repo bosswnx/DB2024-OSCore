@@ -45,7 +45,7 @@ public:
         fed_conds_ = conds_;
     }
 
-    [[nodiscard]] size_t tupleLen() const override{
+    [[nodiscard]] size_t tupleLen() const override {
         return len_;
     }
 
@@ -73,7 +73,7 @@ public:
         auto handle = fh_->get_record(scan_->rid(), context_);
         char *base = handle->data;
         // 逻辑不短路，目前只实现逻辑与
-        return std::all_of(conds_.begin(), conds_.end(), [base, this](const Condition& cond) {
+        return std::all_of(conds_.begin(), conds_.end(), [base, this](const Condition &cond) {
             auto value = Value::col2Value(base, get_col_offset(cond.lhs_col));
             return cond.eval_with_rvalue(value);
         });
@@ -103,4 +103,8 @@ public:
     ExecutorType getType() override {
         return SEQ_SCAN_EXECUTOR;
     }
+
+    [[nodiscard]]  std::string tableName() const override {
+        return tab_name_;
+    };
 };
