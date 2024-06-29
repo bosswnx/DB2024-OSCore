@@ -13,13 +13,23 @@ build: format
 clean:
 	@rm -rf build
 
+run: build
+	@cd build && rm -rf debug_db && \
+	tmux kill-session -t rmdb_session 2>/dev/null || true && \
+	tmux new-session -d -s rmdb_session && \
+	tmux split-window -v && \
+	tmux send-keys -t rmdb_session:0.1 './bin/rmdb debug_db' C-m && \
+	tmux send-keys -t rmdb_session:0.0 'sleep 1; ./bin/rmdb_client' C-m && \
+	tmux select-pane -t rmdb_session:0.0 && \
+	tmux attach-session -t rmdb_session
+
 debug: build
 	@cd build && rm -rf debug_db && \
 	tmux kill-session -t rmdb_session 2>/dev/null || true && \
 	tmux new-session -d -s rmdb_session && \
-	tmux split-window -h && \
-	tmux send-keys -t rmdb_session:0.1 './bin/rmdb debug_db' C-m && \
-	tmux send-keys -t rmdb_session:0.0 'sleep 1; ./bin/rmdb_client' C-m && \
+	tmux split-window -v -p 600 && \
+	tmux send-keys -t rmdb_session:0.1 'gdb -ex run --args ./bin/rmdb debug_db' C-m && \
+	tmux send-keys -t rmdb_session:0.0 'sleep 2; ./bin/rmdb_client' C-m && \
 	tmux select-pane -t rmdb_session:0.0 && \
 	tmux attach-session -t rmdb_session
 
